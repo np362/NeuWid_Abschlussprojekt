@@ -7,15 +7,9 @@ import matplotlib.patches as patches
 import pandas as pd
 
 
-col1, col2 = st.columns([2, 3])
-with col1:
-    st.title("Mechanismus")
-with col2:
-    st.title("Meine App")
+st.title("Mechanismusanalyse")
 
-    st.title("Mockup UI")
-
-st.subheader("Graph analysis")
+st.subheader("Punkteübersicht")
 
 # Beispiel-Daten für die Tabelle
 data = pd.DataFrame({
@@ -29,7 +23,7 @@ data = pd.DataFrame({
 edited_data = st.data_editor(data, num_rows="dynamic")
 
 if data["Fest"][0] == True:
-    st.write("Feste Punkte:")
+    st.write("Mechanismus")
 
 distance_a_b = np.sqrt((data["x"][1] - data["x"][0])**2 + (data["y"][1] - data["y"][0])**2)
 
@@ -43,15 +37,30 @@ for i, txt in enumerate(data["Punkt"]):
 
 st.pyplot(fig)
 
+if st.button("Animation starten"):
+    st.write("Animation wird gestartet!")
+
 # Slider für den Kurbelwinkel (0° bis 360°)
 winkel = st.slider("Kurbelwinkel (°)", 0, 360, 0, step=5)
 
+st.subheader("Mechanismus speichern/laden")
+mechcol1, mechcol2 = st.columns(2)
+with mechcol1:
+    # Button zum Speichern des Mechanismus
+    if st.button("Mechanismus speichern"):
+        st.write("Mechanismus erfolgreich gespeichert!")
+with mechcol2:
+    # Button zum Laden des Mechanismus
+    if st.button("Mechanismus laden"):
+        st.write("Mechanismus erfolgreich geladen!")
+
+st.subheader("Ergebnisse speichern")
 colsave1, colsave2, colsave3 = st.columns(3)
 
 with colsave1:
     # Button zum Speichern der Bewegung als csv-Datei
-    if st.button("Als csv-Datei Speichern"):
-        st.write("Bewegung in einer csv-Datei gespeichert!")
+    if st.button("Bahnkurve als csv-Datei speichern"):
+        st.write("Bahnkurve erfolgreich in einer csv-Datei gespeichert!")
 with colsave2:
     # Button zum Speichern der Animation als GIF
     if st.button("GIF Speichern"):
