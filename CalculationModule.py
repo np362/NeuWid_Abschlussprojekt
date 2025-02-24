@@ -2,7 +2,7 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import numpy as np
-from scipy.optimize import minimize
+from scipy.optimize import least_squares
 from typing import Tuple
 import math
 
@@ -14,13 +14,12 @@ class Center:
     """Since we only want one rotation point, a Singleton is used here"""
     _instance = None 
 
-    def __new__(cls, name: str, posX: int, posY: int, rotatingPoint, angle : float = None, radius : int = None):
+    def __new__(cls, name: str, posX: int, posY: int, rotatingPoint, angle : float = None):
         if cls._instance is None:
             cls._instance = super(Center, cls).__new__(cls)
             cls._instance.name = name
             cls._instance.posX = posX
             cls._instance.posY = posY
-            cls._instance.radius = radius
             cls._instance.rotatingPoint = rotatingPoint
             C.add_node(cls._instance.name, pos=(cls._instance.posX, cls._instance.posY))
             
@@ -32,15 +31,14 @@ class Center:
             
         return cls._instance
     
-    def __init__(self, name: str, posX: int, posY: int, rotatingPoint, angle : float = None, radius : int = None ):
+    def __init__(self, name: str, posX: int, posY: int, rotatingPoint, angle : float = None):
         if not hasattr(self, 'initialized'):
             self.name = name
             self.posX = posX
             self.posY = posY
-            self.radius = radius
             self.angle = angle
             self.rotatingPoint = rotatingPoint
-            
+            self.radius = math.sqrt((self.posX - self.rotatingPoint.posX) ** 2 + (self.posY - self.rotatingPoint.posY) ** 2)
             C.add_node(self.name, pos=(self.posX, self.posY))
             self.initialized = True
     
@@ -48,10 +46,11 @@ class Center:
     def rotate_point(self, degree: float):
         if self.angle is None:
             self.angle = math.atan2(self.rotatingPoint.posY - self.posY, self.rotatingPoint.posX - self.posX)
-
-        if self.radius is None:
-            self.radius = math.sqrt((self.posX - self.rotatingPoint.posX) ** 2 + (self.posY - self.rotatingPoint.posY) ** 2)
-
+            
+        else:
+            newX = self.radius * math.cos(self.angle)
+            newY = self.radius * math.sin(self.angle)
+            self.rotatingPoint.update_position(newX, newY)
         # Convert degree to radians
         rad = math.radians(degree)
         # Calculate new angle
@@ -91,6 +90,7 @@ class Point():
             self.posX = newPosX
             self.posY = newPosY
             P.nodes[self.name]['pos'] = (self.posX, self.posY)
+
             self.vec = np.array([[self.posX], [self.posY]])  # Update the vec attribute
 
     def add_connection(self, *points):
@@ -114,7 +114,7 @@ class Calculation:
         for point in points:
             vecs = [point.vec for point in points]
             cls.xVec = np.vstack(vecs)
-        print(f"xVec:\n {cls.xVec}")
+        #print(f"xVec:\n {cls.xVec}")
 
     @classmethod
     def create_AMatrix(cls, points: list):
@@ -135,7 +135,7 @@ class Calculation:
             cls.AMatrix[row, nodeIndices[end] * 2] = -1
             cls.AMatrix[row+1, nodeIndices[end] * 2 + 1] = -1
             row += 2
-        print(f"AMatrix:\n {cls.AMatrix}")
+        #print(f"AMatrix:\n {cls.AMatrix}")
     
     @classmethod
     def create_lVec(cls):
@@ -146,7 +146,7 @@ class Calculation:
         cls.LVec = cls.AMatrix @ cls.xVec  # Care about order, matrices are not commutative
         numRows = cls.LVec.shape[0] // 2
         cls.LVec = cls.LVec.reshape(numRows, 2)
-        print(f"LVec:\n {cls.LVec}")
+        #print(f"LVec:\n {cls.LVec}")
 
         for i in range(0, int(cls.LVec.shape[0])-1): 
             # Calculating the distance between the two points 
@@ -156,7 +156,7 @@ class Calculation:
             numVecY = np.array([math.sqrt(cls.LVec[i+1,0]**2 + cls.LVec[i+1,1]**2)]) 
             cls.lVec = np.vstack((cls.lVec, numVecY)) 
 
-        print(f"lVec:\n {cls.lVec}")
+        #print(f"lVec:\n {cls.lVec}")
         if len(cls.lVecList) >= 2:
             cls.lVecList.pop(0)
         cls.lVecList.append(cls.lVec)
@@ -169,33 +169,61 @@ class Calculation:
             secondlVec = cls.lVecList[1]
             differences = secondlVec - firstlVec
             cls.eVec = differences
-            print(f"Differences:\n{cls.eVec}")
+            #print(f"Differences:\n{cls.eVec}")
 
-            def error_function(params):
-                new_positions = params.reshape((-1, 2))
-                total_error = np.sum(np.abs(new_positions - cls.eVec))
-                return total_error
-
-            initial_guess = cls.eVec.flatten()
-            result = minimize(error_function, initial_guess, method='BFGS')
-            optimized_params = result.x.reshape(cls.eVec.shape)
-            print(f"Optimized parameters: \n{optimized_params}")
-            
         else:
             print("Not enough lVecs in lVecList to calculate differences.")
+    
+    @classmethod
+    def optimize_point(cls, point: Point, fixedPoint : Point):
+        # Calculate the initial distance between the points
+        initial_distance = np.linalg.norm(np.array([point.posX - fixedPoint.posX, point.posY - fixedPoint.posY]))
+
+        # Define the residual function
+        def residual_function(point_coords):
+            # Update the position of the point with the new coordinates
+            point.update_position(point_coords[0], point_coords[1])
+            
+            # Recalculate xVec, AMatrix, and lVec
+            cls.create_xVec(Point.allPoints)
+            cls.create_AMatrix(Point.allPoints)
+            cls.create_lVec()
+            
+            # Calculate the error
+            cls.calculate_error()
+            
+            # Calculate the distance constraint residual
+            distance = np.linalg.norm(np.array([point_coords[0] - fixedPoint.posX, point_coords[1] - fixedPoint.posY]))
+            distance_residual = distance - initial_distance
+            
+            # Return the residuals, including the distance constraint residual
+            return np.append(cls.eVec.flatten(), distance_residual)
+
+        # Initial position of the free point
+        initial_position = [point.posX, point.posY]
+
+        # Optimize the position of the point
+        result = least_squares(residual_function, initial_position)
+
+        # Extract the optimized position
+        optimized_position = result.x
+        print("Optimized Position:", optimized_position)
+
+        # Update the position of the free point with the optimized coordinates
+        point.update_position(optimized_position[0], optimized_position[1])
+
+        # Final recalculation of xVec, AMatrix, and lVec
+        cls.create_xVec(Point.allPoints)
+        cls.create_AMatrix(Point.allPoints)
+        cls.create_lVec()
+        cls.calculate_error()
             
             
-
-        
-
-
-            
-
 
 p0Vec = Point("A",0, 0, True)
 p1Vec = Point("B",10, 35, False)
 p2Vec = Point("C",-25, 10, False)
-centerVec = Center("center", -30, 0, p2Vec,angle = None, radius=None)
+centerVec = Center("center", -30, 0, p2Vec)
 
 p0Vec.add_connection(p1Vec)
 p1Vec.add_connection(p2Vec)
@@ -211,14 +239,21 @@ print("\n Winkel erhöht \n")
 Calculation.create_xVec(Point.allPoints)
 Calculation.create_AMatrix(Point.allPoints)
 Calculation.create_lVec()
-
 Calculation.calculate_error()
 
-"""
+Calculation.optimize_point(p1Vec, p2Vec)
+
+centerVec.rotate_point(10)
+
+Calculation.optimize_point(p1Vec, p2Vec)
+
+
 def update(num, p0Vec):
 
     ax.clear()
-    centerVec.rotate_point(1)
+    Calculation.optimize_point(p1Vec, p2Vec)
+    centerVec.rotate_point(3)
+    print(f"Distance: {math.sqrt((p1Vec.posX - p2Vec.posY)**2 + (p1Vec.posY - p2Vec.posY)**2 )}")
     #p0Vec.update_position(p0Vec.posX+1, p0Vec.posY)
     pos = (nx.get_node_attributes(C, 'pos'))
     pos.update(nx.get_node_attributes(P, 'pos'))
@@ -230,4 +265,3 @@ fig, ax = plt.subplots()
 ani = animation.FuncAnimation(fig, update, frames=range(800), fargs=(p0Vec,), interval=300, repeat=False)
 
 plt.show()
-"""
