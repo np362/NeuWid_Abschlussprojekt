@@ -36,13 +36,13 @@ with tab1:
     st.subheader("Mechanismus hochladen")
     uploaded_file = st.file_uploader("Lade hier deinen Mechanismus hoch", type=["csv", "png", "jpg", "jpeg"])
     generate_file = st.button("Mechanismus generieren")
-    if generate_file:
-        with st.progress(text='In progress', value=0):
-            time.sleep(0.3)
-            st.success("Der Mechanismus wurde erfolgreich hochgeladen!")
+    #if generate_file:
+        #with st.progress(text='In progress', value=0):
+         #   time.sleep(0.3)
+          #  st.success("Der Mechanismus wurde erfolgreich hochgeladen!")
     
     if uploaded_file is not None:
-        st.write("Mechanismus wurde erfolgreich hochgeladen!")
+        #st.write("Mechanismus wurde erfolgreich hochgeladen!")
         if uploaded_file.type == "image/jpeg" or uploaded_file.type == "image/png" or uploaded_file.type == "image/jpg":
             with tempfile.NamedTemporaryFile(delete=False) as temp_file:
                 temp_file.write(uploaded_file.read())
@@ -52,9 +52,8 @@ with tab1:
             # Anzeigen des Ergebnisses mit Matplotlib
             plt.figure(figsize=(10, 6))
             plt.imshow(image)
-            #plt.axis('off')
-            if st.button("Bild anzeigen"):
-                st.pyplot(fig=plt)
+            plt.axis('off')
+            
 
             if generate_file:
                 df_rows = []
@@ -79,18 +78,35 @@ with tab1:
                         st.session_state.dataframe,
                         pd.DataFrame([["center", center_node[0], center_node[1], center_node[2]]], columns=["Punkt", "x", "y", "Fest"])
                     ], ignore_index=True)
+                with st.progress(text='In progress', value=0):
+                    time.sleep(0.3)
+                    st.success("Der Mechanismus wurde erfolgreich hochgeladen!")
 
                 st.write(st.session_state.dataframe)
+            if st.button("Bild anzeigen"):
+                st.pyplot(fig=plt)
+        
+        elif uploaded_file.type == "text/csv":
+            st.session_state.dataframe = pd.read_csv(uploaded_file)
+
+            
+    elif uploaded_file is None and generate_file:
+        st.error("Es wurde keine Datei hochgeladen.")
 
 with tab2:
     st.subheader("Mechanismus erstellen")
     
+    if "prev_last_index" not in st.session_state:
+        st.session_state.prev_last_index = len(st.session_state.dataframe) - 1
+
     def update_dataframe():
         edited = st.session_state.data_editor
         if isinstance(edited_data, pd.DataFrame):
             st.session_state.dataframe = edited_data
         else:
             st.session_state.dataframe = pd.DataFrame(edited_data)
+
+        st.session_state.prev_last_index = len(st.session_state.dataframe) - 2
 
     def swap_rows():
         idx1 = st.session_state.idx1
@@ -112,6 +128,10 @@ with tab2:
 
     with col2:
         st.write("Wähle Zeilen zum Tauschen:")
+        last_index = st.session_state.prev_last_index
+        if last_index < 0:
+            last_index = 0
+
         st.selectbox("Erste Zeile", st.session_state.dataframe.index, key="idx1")
         st.selectbox("Zweite Zeile", st.session_state.dataframe.index, key="idx2")
         st.button("Zwei Zeilen tauschen", on_click=swap_rows)
@@ -178,18 +198,12 @@ with tab2:
             st.plotly_chart(mechanism_fig)
         else:
             st.error('Mechanismus kann nicht erstellt werden')
-            st.write(f"Freiheitsgrade: {f}")
-        #fig, ax = plt.subplots()
-        #nx.draw(P, pos=nx.get_node_attributes(P, 'pos'), with_labels=True, node_size=300, node_color="skyblue", font_size=10, font_weight="bold")
-        #ani = animation.FuncAnimation(fig, update, frames=range(20), fargs=(Point.allPoints[0],), interval=200, repeat=False)
-        #st.pyplot(fig)
-
-        
-
-
-
-        
-
+            if f < 0:
+                st.write("Der Mechanismus ist überbestimmt.")
+                st.write("Entferne mindestens", int(abs(f)/2), "Verbindungen.")
+            elif f > 0:
+                st.write("Der Mechanismus ist unterbestimmt.")
+                st.write("Füge mindestens", int(f/2), "Verbindungen hinzu.")
     
 
 with tab3:
