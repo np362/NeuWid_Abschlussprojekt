@@ -115,6 +115,7 @@ class Calculation:
         cls.LVec = cls.AMatrix @ cls.xVec
         numRows = cls.LVec.shape[0] // 2
         cls.LVec = cls.LVec.reshape(numRows, 2)
+        print(f"LVec: \n {cls.LVec}")
 
         for i in range(0, cls.LVec.shape[0] - 1):
             numVecX = np.array([math.sqrt(cls.LVec[i, 0] ** 2 + cls.LVec[i, 1] ** 2)])
@@ -126,6 +127,7 @@ class Calculation:
         print(f"lVec:\n {cls.lVec}")
         if len(cls.lVecList) >= 2:
             cls.lVecList.pop(0)
+        #first index is distance between p0 to p1, second is p1 to p2
         cls.lVecList.append(cls.lVec)
 
     @classmethod
@@ -138,30 +140,66 @@ class Calculation:
         print(f"Differences:\n{cls.eVec}")
 
 
+def distance(p1, p2):
+    return np.linalg.norm(np.array(p1.get_position()) - np.array(p2.get_position()))
 
+def residuals(params, fixed_point, desired_distance):
+    x, y = params
+    temp_point = Point("Temp", x, y, False)
+    return distance(temp_point, fixed_point) - desired_distance
 
+# Erstelle die Punkte
 p0Vec = Point("A", 0, 0, False)
 p1Vec = Point("B", 10, 35, False)
 p2Vec = Point("C", -25, 10, False)
 centerVec = Center("center", -30, 0, p2Vec)
 
+
 p0Vec.add_connection(p1Vec)
 p1Vec.add_connection(p2Vec)
 
-Calculation.create_xVec(Point.allPoints)
-Calculation.create_AMatrix(Point.allPoints)
-Calculation.create_lVec()
-Calculation.calculate_error()
+print(f"Distanz : {math.sqrt((p1Vec.posX - p2Vec.posX)**2 + (p1Vec.posY - p2Vec.posY)**2)}")
 
-print("\n Winkel ändern \n")
+
+# Gewünschte Distanz zwischen den Punkten
+desired_distance = distance(p1Vec, p2Vec)
+print(f"Desired distance: {desired_distance}")
+
+# Ändere die Position von p2Vec, damit p1Vec sich anpassen muss
 centerVec.rotate_point(10)
+print(f"P2 : {p2Vec.get_position()}")
 
-Calculation.create_xVec(Point.allPoints)
-Calculation.create_AMatrix(Point.allPoints)
-Calculation.create_lVec()
-Calculation.calculate_error()
+# Anfangsposition für p1Vec
+initial_position = p1Vec.get_position()
 
-points = [p0Vec, p1Vec, p2Vec, centerVec]
+# Least-Squares-Optimierung durchführen, um p1Vec anzupassen
+result = least_squares(residuals, initial_position, args=(p2Vec, desired_distance))
+# Aktualisiere die Position von p1Vec mit den optimierten Werten
+p1Vec.update_position(result.x[0], result.x[1])
+
+print(f"Distanz : {math.sqrt((p1Vec.posX - p2Vec.posX)**2 + (p1Vec.posY - p2Vec.posY)**2)}")
+
+# Gewünschte Distanz zwischen den Punkten
+desired_distance = distance(p1Vec, p2Vec)
+print(f"Desired distance: {desired_distance}")
+
+# Ändere die Position von p2Vec, damit p1Vec sich anpassen muss
+centerVec.rotate_point(10)
+print(f"P2 : {p2Vec.get_position()}")
+
+# Anfangsposition für p1Vec
+initial_position = p1Vec.get_position()
+
+# Least-Squares-Optimierung durchführen, um p1Vec anzupassen
+result = least_squares(residuals, initial_position, args=(p2Vec, desired_distance))
+# Aktualisiere die Position von p1Vec mit den optimierten Werten
+p1Vec.update_position(result.x[0], result.x[1])
+
+print(f"Distanz : {math.sqrt((p1Vec.posX - p2Vec.posX)**2 + (p1Vec.posY - p2Vec.posY)**2)}")
+
+
+
+points = [p0Vec, p1Vec, p2Vec]
 
 fig, ax = plt.subplots()
 
@@ -178,10 +216,10 @@ def update(num):
         for connectedPoint in point.connectedPoints:
             ax.plot([point.posX, connectedPoint.posX], [point.posY, connectedPoint.posY], 'r-')
 
-    # Zeichne centerVec und seine Verbindung
-    ax.plot(centerVec.posX, centerVec.posY, 'o', markersize=10, color='green')
-    ax.text(centerVec.posX, centerVec.posY, centerVec.name, fontsize=12, ha='right')
-    ax.plot([centerVec.posX, centerVec.rotatingPoint.posX], [centerVec.posY, centerVec.rotatingPoint.posY], 'g--')
+    #  Zeichne centerVec und seine Verbindung
+    # ax.plot(centerVec.posX, centerVec.posY, 'o', markersize=10, color='green')
+    # ax.text(centerVec.posX, centerVec.posY, centerVec.name, fontsize=12, ha='right')
+    # ax.plot([centerVec.posX, centerVec.rotatingPoint.posX], [centerVec.posY, centerVec.rotatingPoint.posY], 'g--')
 
     ax.set_xlim(-50, 50)
     ax.set_ylim(-10, 50)
