@@ -31,11 +31,11 @@ class GraphEvaluation:
     def detect_nodes(cls, output, edges):
         
         height, width = output.shape[:2]
-        maxRadius = int(0.02*width)
-        minRadius = int(width*0.01)
+        maxRadius = int(min(height, width)*0.044)
+        minRadius = int(min(height, width)*0.005)
         # Punkterkennung
-        nodes, output2 = cls.circle_detection(edges, minRadius, maxRadius, output, 1)
-        nodes2, output3 = cls.circle_detection(edges, minRadius*13, maxRadius*10, output2, 2)
+        nodes, output2 = cls.circle_detection(edges, minRadius, maxRadius, output, 1, height)
+        nodes2, output3 = cls.circle_detection(edges, minRadius*16, maxRadius*3, output2, 2, height)
         
         nodes = [list(node) for node in nodes]
         for node in nodes:
@@ -46,7 +46,7 @@ class GraphEvaluation:
         return output3, nodes
     
     @classmethod
-    def circle_detection(cls, edges, minRadius, maxRadius, output, circle_type):
+    def circle_detection(cls, edges, minRadius, maxRadius, output, circle_type, height):
         nodes = []
         if circle_type == 2:
             mask = np.zeros(edges.shape, dtype=np.uint8)
@@ -55,10 +55,10 @@ class GraphEvaluation:
             edges = cv2.bitwise_not(edges, edges, mask=mask)
         circles = cv2.HoughCircles(image=edges,
                                 method=cv2.HOUGH_GRADIENT,
-                                dp=1.5,
+                                dp=1.8,
                                 minDist=2*minRadius, 
                                 param1=100, 
-                                param2=30, 
+                                param2=32, 
                                 minRadius=minRadius, 
                                 maxRadius=maxRadius
                                 )
@@ -67,8 +67,9 @@ class GraphEvaluation:
             for (k, (x,y,r)) in enumerate(circles[0, :], start=1):
                 cv2.circle(output, (x, y), r, (0, 255, 0), thickness=2) # Kreis
                 cv2.circle(output, (x, y), 2, (0, 0, 255), 3) # Mittelpunkt
+                print(f"Radius: {r, k}")
                 fixed_nodes = False
-                nodes.append((x, y, fixed_nodes))
+                nodes.append((x, height-y, fixed_nodes))
                 cv2.putText(output, f"{k}", (x+5, y+30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255,0,0), 2)
         
         return nodes, output
@@ -86,40 +87,58 @@ class GraphEvaluation:
 
     def plotly_mechanism(self, centerVec, points):
         fig = go.Figure()
-        points[1].update_position(points[1].posX + 1, points[1].posY)
+        #points[1].update_position(points[1].posX + 1, points[1].posY)
         print(f"Pos points[1]: {points[1].posX}, {points[1].posY}")
         print(f"pos centerVec: {centerVec.posX}, {centerVec.posY}")
-        centerVec.rotate_point(5)
-
-        # Zeichne die Punkte
-        for point in points:
-            fig.add_trace(go.Scatter(x=[point.posX], y=[point.posY], mode='markers+text',
-                                    marker=dict(size=15),
-                                    text=[point.name],
-                                    textposition="top right"))
+        #centerVec.rotate_point(5)
 
         # Zeichne die Verbindungen
         for point in points[:-1]:  # Der letzte Punkt ist centerVec und hat keine Verbindung
             for connectedPoint in point.connectedPoints:
                 fig.add_trace(go.Scatter(x=[point.posX, connectedPoint.posX],
                                         y=[point.posY, connectedPoint.posY],
-                                        mode='lines', line=dict(color='red')))
+                                        mode='lines', line=dict(color='blue'),
+                                        showlegend=False))
+        # Zeichne die Punkte
+        for point in points:
+            fig.add_trace(go.Scatter(x=[point.posX], y=[point.posY], mode='markers+text',
+                                    marker=dict(size=15, color='green'),
+                                    text=[point.name],
+                                    textposition="top right",
+                                    showlegend=False))
 
         # Zeichne centerVec und seine Verbindung
         fig.add_trace(go.Scatter(x=[centerVec.posX], y=[centerVec.posY], mode='markers+text',
-                                marker=dict(size=10, color='green'),
+                                marker=dict(size=15, color='green'),
                                 text=[centerVec.name],
-                                textposition="top right"))
+                                textposition="top right",
+                                showlegend=False))
 
         fig.add_trace(go.Scatter(x=[centerVec.posX, centerVec.rotatingPoint.posX],
                                 y=[centerVec.posY, centerVec.rotatingPoint.posY],
-                                mode='lines', line=dict(color='green', dash='dash')))
+                                mode='lines', line=dict(color='blue', dash='dash')))
+        
+        print(f"centerVec.rotating: {centerVec.rotatingPoint.posX}, {centerVec.rotatingPoint.posY}")
+        # Kreiserstellung für centerVec und Nachbar
+        distance_center_n = np.sqrt((centerVec.posX - centerVec.rotatingPoint.posX)**2 + (centerVec.posY - centerVec.rotatingPoint.posY)**2)
+        angles = np.linspace(0, 2*np.pi, 300)
+        circle_x = centerVec.posX + distance_center_n * np.cos(angles)
+        circle_y = centerVec.posY + distance_center_n * np.sin(angles)
+
+        circle = go.Scatter(x=circle_x, y=circle_y,
+                            mode='lines', line=dict(color='red'), showlegend=False)
+        
+        fig.add_trace(circle)
 
         fig.update_layout(title='Punkte und Verbindungen',
                         xaxis_title='X-Achse',
                         yaxis_title='Y-Achse',
-                        xaxis=dict(range=[-50, 50]),
-                        yaxis=dict(range=[-10, 50]))
+                        #xaxis=dict(range=[-50, 50]),
+                        #yaxis=dict(range=[-10, 50])
+                        yaxis_scaleanchor = "x",
+                        yaxis_scaleratio = 1,
+                        showlegend=False
+                        )
 
         return fig
     

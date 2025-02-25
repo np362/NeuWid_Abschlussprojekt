@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import tempfile
 import pandas as pd
 from graphevaluation import GraphEvaluation
-from CalculationModule import Center, Point, Calculation, update
+from CalculationModule import Center, Point, Calculation#, update
 import matplotlib.animation as animation
 import networkx as nx
 
@@ -52,9 +52,10 @@ with tab1:
             # Anzeigen des Ergebnisses mit Matplotlib
             plt.figure(figsize=(10, 6))
             plt.imshow(image)
-            plt.axis('off')
+            #plt.axis('off')
             if st.button("Bild anzeigen"):
                 st.pyplot(fig=plt)
+
             if generate_file:
                 df_rows = []
                 center_node = None
@@ -84,10 +85,38 @@ with tab1:
 with tab2:
     st.subheader("Mechanismus erstellen")
     
-    # Beispiel-Daten für die Tabelle
-    # Erlaubt dem Nutzer, die Tabelle zu bearbeiten
-    st.write("Hier kannst du deine Mechanismusdaten bearbeiten:")
-    edited_data = st.data_editor(st.session_state.dataframe, num_rows="dynamic")
+    def update_dataframe():
+        edited = st.session_state.data_editor
+        if isinstance(edited_data, pd.DataFrame):
+            st.session_state.dataframe = edited_data
+        else:
+            st.session_state.dataframe = pd.DataFrame(edited_data)
+
+    def swap_rows():
+        idx1 = st.session_state.idx1
+        idx2 = st.session_state.idx2
+        df = st.session_state.dataframe.copy()
+        df.iloc[[idx1, idx2]] = df.iloc[[idx2, idx1]].to_numpy()  # <-- Korrigierte Zeile!
+        st.session_state.dataframe = df
+
+    col1, col2 = st.columns([2, 1])
+
+    with col1:
+        st.write("Hier kannst du deine Mechanismusdaten bearbeiten:")
+        edited_data = st.data_editor(
+            st.session_state.dataframe, 
+            num_rows="dynamic",
+            key="data_editor",
+            on_change=update_dataframe
+        )
+
+    with col2:
+        st.write("Wähle Zeilen zum Tauschen:")
+        st.selectbox("Erste Zeile", st.session_state.dataframe.index, key="idx1")
+        st.selectbox("Zweite Zeile", st.session_state.dataframe.index, key="idx2")
+        st.button("Zwei Zeilen tauschen", on_click=swap_rows)
+    #edited_data = st.session_state.edited_data
+
 
     if st.button("Mechanismus erstellen"):
         Point.allPoints = []
@@ -95,6 +124,8 @@ with tab2:
         Calculation.LVec = np.empty((0,0))
         Calculation.xVec = np.empty((0,0))
         Calculation.lVec = np.empty((0,1))
+        if Center._instance:
+            Center._instance = None
 
         #with st.spinner(text='In progress'):
             #time.sleep(3)
@@ -115,7 +146,7 @@ with tab2:
         Calculation.calculate_error()
 
         print("\n Winkel ändern \n")
-        centerVec.rotate_point(winkel)
+        #centerVec.rotate_point(winkel)
 
         Calculation.create_xVec(Point.allPoints)
         Calculation.create_AMatrix(Point.allPoints)
@@ -124,24 +155,40 @@ with tab2:
 
         points = [p for p in Point.allPoints]
         print(points)
-        points.append(centerVec)
-        print(points)
+        #points.append(centerVec)
+        #print(points)
 
-
+        def degree_of_freedom(points):
+            f = 2*(len(points))
+            print(f"DOF: {f}")
+            for point in points:
+                if point.isFixed:
+                    f -= 2
+                if point == centerVec.rotatingPoint:
+                    f -= 2
+                if point.connectedPoints:
+                    f -= 1
+            #f = f - len(Point.connectedPoints)
+            print(f"DOF: {f}")
+            return f == 0, f
+        DOF, f = degree_of_freedom(points)
+        if DOF == True:
+            st.success('Mechanismus wurde erfolgreich erstellt')
+            mechanism_fig = GraphEvaluation().plotly_mechanism(centerVec, Point.allPoints)
+            st.plotly_chart(mechanism_fig)
+        else:
+            st.error('Mechanismus kann nicht erstellt werden')
+            st.write(f"Freiheitsgrade: {f}")
         #fig, ax = plt.subplots()
         #nx.draw(P, pos=nx.get_node_attributes(P, 'pos'), with_labels=True, node_size=300, node_color="skyblue", font_size=10, font_weight="bold")
         #ani = animation.FuncAnimation(fig, update, frames=range(20), fargs=(Point.allPoints[0],), interval=200, repeat=False)
         #st.pyplot(fig)
 
-        mechanism_fig = GraphEvaluation().plotly_mechanism(centerVec, Point.allPoints)
-        st.plotly_chart(mechanism_fig)
+        
 
 
 
-        if edited_data["Fest"][0] == True:
-            st.success('Mechanismus wurde erfolgreich erstellt')
-        else:
-            st.error('Mechanismus kann nicht erstellt werden')
+        
 
     
 

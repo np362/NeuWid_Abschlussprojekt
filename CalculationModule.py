@@ -139,41 +139,41 @@ class Calculation:
         print(f"Differences:\n{cls.eVec}")
 
 
-edited_data = pd.DataFrame({
-        "Punkt": ["B", "C", "E", "center"],
-        "x": [0, 10, -25, -30],
-        "y": [0, 35, 10, 0],
-        "Fest": [True, False, False, True]  # True = fest, False = lose
-    })
+#edited_data = pd.DataFrame({
+ #       "Punkt": ["B", "C", "E", "center"],
+  #      "x": [0, 10, -25, -30],
+   #     "y": [0, 35, 10, 0],
+    #    "Fest": [True, False, False, True]  # True = fest, False = lose
+    #})
 
-for node in edited_data.iterrows():
-    if node[0] == edited_data.shape[0]-1:
-        centerVec = Center(node[1]["Punkt"], node[1]["x"], node[1]["y"], Point.allPoints[-1])
-    else:
-        Point(node[1]["Punkt"], node[1]["x"], node[1]["y"], node[1]["Fest"])
+#for node in edited_data.iterrows():
+ #   if node[0] == edited_data.shape[0]-1:
+  #      centerVec = Center(node[1]["Punkt"], node[1]["x"], node[1]["y"], Point.allPoints[-1])
+   # else:
+    #    Point(node[1]["Punkt"], node[1]["x"], node[1]["y"], node[1]["Fest"])
 
-for i in range(len(Point.allPoints)-1):
-    Point.allPoints[i].add_connection(Point.allPoints[i+1])
+#for i in range(len(Point.allPoints)-1):
+ #   Point.allPoints[i].add_connection(Point.allPoints[i+1])
 
-Calculation.create_xVec(Point.allPoints)
-Calculation.create_AMatrix(Point.allPoints)
-Calculation.create_lVec()
-Calculation.calculate_error()
+#Calculation.create_xVec(Point.allPoints)
+#Calculation.create_AMatrix(Point.allPoints)
+#Calculation.create_lVec()
+#Calculation.calculate_error()
 
-print("\n Winkel ändern \n")
-centerVec.rotate_point(10)
+#print("\n Winkel ändern \n")
+#centerVec.rotate_point(10)
 
-Calculation.create_xVec(Point.allPoints)
-Calculation.create_AMatrix(Point.allPoints)
-Calculation.create_lVec()
-Calculation.calculate_error()
+#Calculation.create_xVec(Point.allPoints)
+#Calculation.create_AMatrix(Point.allPoints)
+#Calculation.create_lVec()
+#Calculation.calculate_error()
 
-points = [p for p in Point.allPoints]
-print(points)
-points.append(centerVec)
-print(points)
+#points = [p for p in Point.allPoints]
+#print(points)
+#points.append(centerVec)
+#print(points)
 
-fig, ax = plt.subplots()
+#fig, ax = plt.subplots()
 
 
 #p0Vec = Point("A", 0, 0, False)
@@ -184,35 +184,35 @@ fig, ax = plt.subplots()
 #p0Vec.add_connection(p1Vec)
 #p1Vec.add_connection(p2Vec)
 
-fig, ax = plt.subplots()
-ax.set_title('Punkte und Verbindungen')
+#fig, ax = plt.subplots()
+#ax.set_title('Punkte und Verbindungen')
 
-def update(num):
-    ax.clear()
-    # Bewege p1Vec um 1 in X-Richtung
-    points[1].update_position(points[1].posX + 1, points[1].posY)
-    centerVec.rotate_point(5)
-    # Zeichne die Punkte
-    for point in points:
-        ax.plot(point.posX, point.posY, 'o', markersize=10)
-        ax.text(point.posX, point.posY, point.name, fontsize=12, ha='right')
+# def update(num):
+#     ax.clear()
+#     # Bewege p1Vec um 1 in X-Richtung
+#     points[1].update_position(points[1].posX + 1, points[1].posY)
+#     centerVec.rotate_point(5)
+#     # Zeichne die Punkte
+#     for point in points:
+#         ax.plot(point.posX, point.posY, 'o', markersize=10)
+#         ax.text(point.posX, point.posY, point.name, fontsize=12, ha='right')
 
-    # Zeichne die Verbindungen
-    for point in points[:-1]:  # Der letzte Punkt ist centerVec und hat keine Verbindung
-        for connectedPoint in point.connectedPoints:
-            ax.plot([point.posX, connectedPoint.posX], [point.posY, connectedPoint.posY], 'r-')
+#     # Zeichne die Verbindungen
+#     for point in points[:-1]:  # Der letzte Punkt ist centerVec und hat keine Verbindung
+#         for connectedPoint in point.connectedPoints:
+#             ax.plot([point.posX, connectedPoint.posX], [point.posY, connectedPoint.posY], 'r-')
 
-    # Zeichne centerVec und seine Verbindung
-    ax.plot(centerVec.posX, centerVec.posY, 'o', markersize=10, color='green')
-    ax.text(centerVec.posX, centerVec.posY, centerVec.name, fontsize=12, ha='right')
-    ax.plot([centerVec.posX, centerVec.rotatingPoint.posX], [centerVec.posY, centerVec.rotatingPoint.posY], 'g--')
+#     # Zeichne centerVec und seine Verbindung
+#     ax.plot(centerVec.posX, centerVec.posY, 'o', markersize=10, color='green')
+#     ax.text(centerVec.posX, centerVec.posY, centerVec.name, fontsize=12, ha='right')
+#     ax.plot([centerVec.posX, centerVec.rotatingPoint.posX], [centerVec.posY, centerVec.rotatingPoint.posY], 'g--')
 
-    ax.set_xlim(-50, 50)
-    ax.set_ylim(-10, 50)
-    ax.set_xlabel('X-Achse')
-    ax.set_ylabel('Y-Achse')
-    ax.set_title('Punkte und Verbindungen')
+#     ax.set_xlim(-50, 50)
+#     ax.set_ylim(-10, 50)
+#     ax.set_xlabel('X-Achse')
+#     ax.set_ylabel('Y-Achse')
+#     ax.set_title('Punkte und Verbindungen')
 
-ani = animation.FuncAnimation(fig, update, frames=range(800), interval=300, repeat=False)
+# ani = animation.FuncAnimation(fig, update, frames=range(800), interval=300, repeat=False)
 
-plt.show()
+# plt.show()
