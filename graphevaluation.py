@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
+import networkx as nx
 
 class GraphEvaluation:
     def __init__(self, uploaded_file=None):
@@ -28,31 +29,51 @@ class GraphEvaluation:
     
     @classmethod
     def detect_nodes(cls, output, edges):
-        nodes = []
+        
         height, width = output.shape[:2]
-        maxRadius = int(0.02*width)
-        minRadius = int(width*0.01)
+        maxRadius = int(min(height, width)*0.044)
+        minRadius = int(min(height, width)*0.005)
         # Punkterkennung
+        nodes, output2 = cls.circle_detection(edges, minRadius, maxRadius, output, 1, height)
+        nodes2, output3 = cls.circle_detection(edges, minRadius*16, maxRadius*3, output2, 2, height)
+        
+        nodes = [list(node) for node in nodes]
+        for node in nodes:
+            if nodes2[0][0] -5 <= node[0] <= nodes2[0][0] +5 and nodes2[0][1] -5 <= node[1] <= nodes2[0][1]+5:
+                node[2] = True
+        nodes = [tuple(node) for node in nodes]
+        #nodes.extend(nodes2)
+        return output3, nodes
+    
+    @classmethod
+    def circle_detection(cls, edges, minRadius, maxRadius, output, circle_type, height):
+        nodes = []
+        if circle_type == 2:
+            mask = np.zeros(edges.shape, dtype=np.uint8)
+            # nur rote Kreise
+            mask = cv2.inRange(output, (255, 0, 0), (255, 50, 50))
+            edges = cv2.bitwise_not(edges, edges, mask=mask)
         circles = cv2.HoughCircles(image=edges,
-                                   method=cv2.HOUGH_GRADIENT,
-                                   dp=1.5,
-                                   minDist=2*minRadius, 
-                                   param1=100, 
-                                   param2=30, 
-                                   minRadius=minRadius, 
-                                   maxRadius=maxRadius
-                                   )
+                                method=cv2.HOUGH_GRADIENT,
+                                dp=1.8,
+                                minDist=2*minRadius, 
+                                param1=100, 
+                                param2=32, 
+                                minRadius=minRadius, 
+                                maxRadius=maxRadius
+                                )
         if circles is not None:
             circles = np.around(circles).astype(np.uint32)
             for (k, (x,y,r)) in enumerate(circles[0, :], start=1):
                 cv2.circle(output, (x, y), r, (0, 255, 0), thickness=2) # Kreis
                 cv2.circle(output, (x, y), 2, (0, 0, 255), 3) # Mittelpunkt
-                fixed_nodes = (k == 1 or k == len(circles[0, :]))
-                nodes.append((x, y, fixed_nodes))
+                print(f"Radius: {r, k}")
+                fixed_nodes = False
+                nodes.append((x, height-y, fixed_nodes))
                 cv2.putText(output, f"{k}", (x+5, y+30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255,0,0), 2)
+        
+        return nodes, output
 
-        return output, nodes
-    
     def matplot_mechanism(self, data):
         distance_a_b = np.sqrt((data["x"][1] - data["x"][0])**2 + (data["y"][1] - data["y"][0])**2)
         fig, ax = plt.subplots(figsize=(4, 4), dpi=80)
@@ -64,48 +85,71 @@ class GraphEvaluation:
 
         return fig
 
-    def plotly_mechanism(self, data):
-        distance_a_b = np.sqrt((data["x"][1] - data["x"][0])**2 + (data["y"][1] - data["y"][0])**2)
-
-        # Kreis-Koordinaten generieren
-        theta = np.linspace(0, 2*np.pi, 100)
-        circle_x = data["x"][0] + distance_a_b * np.cos(theta)
-        circle_y = data["y"][0] + distance_a_b * np.sin(theta)
-
-        # Plotly-Figur erstellen
+    def plotly_mechanism(self, centerVec, points):
         fig = go.Figure()
+        #points[1].update_position(points[1].posX + 1, points[1].posY)
+        print(f"Pos points[1]: {points[1].posX}, {points[1].posY}")
+        print(f"pos centerVec: {centerVec.posX}, {centerVec.posY}")
+        #centerVec.rotate_point(5)
 
-        # Kreis
-        fig.add_trace(go.Scatter(x=circle_x, y=circle_y, mode="lines"))
+        # Zeichne die Verbindungen
+        for point in points[:-1]:  # Der letzte Punkt ist centerVec und hat keine Verbindung
+            for connectedPoint in point.connectedPoints:
+                fig.add_trace(go.Scatter(x=[point.posX, connectedPoint.posX],
+                                        y=[point.posY, connectedPoint.posY],
+                                        mode='lines', line=dict(color='blue'),
+                                        showlegend=False))
+        # Zeichne die Punkte
+        for point in points:
+            fig.add_trace(go.Scatter(x=[point.posX], y=[point.posY], mode='markers+text',
+                                    marker=dict(size=15, color='green'),
+                                    text=[point.name],
+                                    textposition="top right",
+                                    showlegend=False))
 
-        # Linie + Punkte
-        fig.add_trace(go.Scatter(x=data["x"],
-                                 y=data["y"], 
-                                 mode="lines+markers", 
-                                 marker=dict(
-                                            size=15,
-                                            color="red",
-                                            symbol="circle"
-                                            ), 
-                                 line=dict(
-                                          color="blue"
-                                          )))
+        # Zeichne centerVec und seine Verbindung
+        fig.add_trace(go.Scatter(x=[centerVec.posX], y=[centerVec.posY], mode='markers+text',
+                                marker=dict(size=15, color='green'),
+                                text=[centerVec.name],
+                                textposition="top right",
+                                showlegend=False))
 
-        # Layout anpassen
-        fig.update_layout(
-            title="Plot mit Kreis in Plotly",
-            xaxis_title="X-Koordinate",
-            yaxis_title="Y-Koordinate",
-            xaxis=dict(ticks="inside", showticklabels=True),
-            yaxis=dict(ticks="", showticklabels=True), 
-            showlegend=False,           
-            width=400,
-            height=700,
-        )
+        fig.add_trace(go.Scatter(x=[centerVec.posX, centerVec.rotatingPoint.posX],
+                                y=[centerVec.posY, centerVec.rotatingPoint.posY],
+                                mode='lines', line=dict(color='blue', dash='dash')))
+        
+        print(f"centerVec.rotating: {centerVec.rotatingPoint.posX}, {centerVec.rotatingPoint.posY}")
+        # Kreiserstellung für centerVec und Nachbar
+        distance_center_n = np.sqrt((centerVec.posX - centerVec.rotatingPoint.posX)**2 + (centerVec.posY - centerVec.rotatingPoint.posY)**2)
+        angles = np.linspace(0, 2*np.pi, 300)
+        circle_x = centerVec.posX + distance_center_n * np.cos(angles)
+        circle_y = centerVec.posY + distance_center_n * np.sin(angles)
+
+        circle = go.Scatter(x=circle_x, y=circle_y,
+                            mode='lines', line=dict(color='red'), showlegend=False)
+        
+        fig.add_trace(circle)
+
+        fig.update_layout(title='Punkte und Verbindungen',
+                        xaxis_title='X-Achse',
+                        yaxis_title='Y-Achse',
+                        #xaxis=dict(range=[-50, 50]),
+                        #yaxis=dict(range=[-10, 50])
+                        yaxis_scaleanchor = "x",
+                        yaxis_scaleratio = 1,
+                        showlegend=False
+                        )
 
         return fig
     
-    def interpret_image(self):
+    def save_image(self):
+        plotly_fig = self.plotly_mechanism()
+        plotly_fig.write_image("mechanism.png")
+
+    def save_gif(self):
+        pass
+
+    def save_video(self):
         pass
 
     def interpret_csv(self):
