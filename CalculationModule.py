@@ -1,37 +1,24 @@
-import networkx as nx
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import numpy as np
 from scipy.optimize import least_squares
-from typing import Tuple
 import math
-
-
-P = nx.Graph() #one Graph is for real joints and connections, the other is for theoretical ones such as center points and radius 
-C = nx.Graph() 
 
 class Center:
     """Since we only want one rotation point, a Singleton is used here"""
-    _instance = None 
+    _instance = None
 
-    def __new__(cls, name: str, posX: int, posY: int, rotatingPoint, angle : float = None):
+    def __new__(cls, name: str, posX: int, posY: int, rotatingPoint, angle: float = None):
         if cls._instance is None:
             cls._instance = super(Center, cls).__new__(cls)
             cls._instance.name = name
             cls._instance.posX = posX
             cls._instance.posY = posY
             cls._instance.rotatingPoint = rotatingPoint
-            C.add_node(cls._instance.name, pos=(cls._instance.posX, cls._instance.posY))
-            
-            if C.degree(cls._instance.name) <= 1:
-                C.add_edge(cls._instance.name, rotatingPoint.name)
-                C.nodes[rotatingPoint.name]['pos'] = (rotatingPoint.posX, rotatingPoint.posY)
-            else:
-                print("Kann nicht mehr als ein Knoten hinzugefügt werden")
             
         return cls._instance
-    
-    def __init__(self, name: str, posX: int, posY: int, rotatingPoint, angle : float = None):
+
+    def __init__(self, name: str, posX: int, posY: int, rotatingPoint, angle: float = None):
         if not hasattr(self, 'initialized'):
             self.name = name
             self.posX = posX
@@ -39,9 +26,7 @@ class Center:
             self.angle = angle
             self.rotatingPoint = rotatingPoint
             self.radius = math.sqrt((self.posX - self.rotatingPoint.posX) ** 2 + (self.posY - self.rotatingPoint.posY) ** 2)
-            C.add_node(self.name, pos=(self.posX, self.posY))
             self.initialized = True
-    
 
     def rotate_point(self, degree: float):
         if self.angle is None:
@@ -51,6 +36,7 @@ class Center:
             newX = self.radius * math.cos(self.angle)
             newY = self.radius * math.sin(self.angle)
             self.rotatingPoint.update_position(newX, newY)
+        
         # Convert degree to radians
         rad = math.radians(degree)
         # Calculate new angle
@@ -63,44 +49,35 @@ class Center:
         # Update the angle
         self.angle = newAngle
 
-                
-        
-    
-
-class Point():
+class Point:
     """These are points that are not center of a circle"""
-    allPoints = [] #creates a list which is shared between all objects
+    allPoints = []
 
     def __init__(self, name: str, posX: int, posY: int, isFixed: bool):
-        
         self.name = name
         self.posX = posX
         self.posY = posY
         self.isFixed = isFixed
         self.vec = np.array([[self.posX], [self.posY]])
         self.connectedPoints = []
-        Point.allPoints.append(self) #adds Point object to this list
-        P.add_node(self.name, pos=(self.posX, self.posY))
-    
+        Point.allPoints.append(self)  # adds Point object to this list
+
     def get_position(self):
         return self.posX, self.posY
 
     def update_position(self, newPosX, newPosY):
-        if self.isFixed == False:
+        if not self.isFixed:
             self.posX = newPosX
             self.posY = newPosY
-            P.nodes[self.name]['pos'] = (self.posX, self.posY)
-
             self.vec = np.array([[self.posX], [self.posY]])  # Update the vec attribute
 
     def add_connection(self, *points):
         for point in points:
             if isinstance(point, Point) and point not in self.connectedPoints:
                 self.connectedPoints.append(point)
-                P.add_edge(self.name, point.name)
 
     def get_connection(self):
-        return list(P.neighbors(self.name))
+        return self.connectedPoints
 
 
 class Calculation:
@@ -110,53 +87,43 @@ class Calculation:
     @classmethod
     def create_xVec(cls, points: list):
         cls.xVec = np.empty((0,0))
-        """This creates a column vector similar to x in script"""
         for point in points:
             vecs = [point.vec for point in points]
             cls.xVec = np.vstack(vecs)
-        #print(f"xVec:\n {cls.xVec}")
 
     @classmethod
     def create_AMatrix(cls, points: list):
-        cls.AMatrix = np.zeros((int(P.number_of_edges()) * 2, int(P.number_of_nodes()) * 2))
-        #print(f"{[point.name for point in points]}")  # Ausgabe der Namen der Punkte
-        edges = list(P.edges())
-        #print(f"{edges}")
-        #print(f"Points: {len(points)}, Connections: {len(edges)}")
-        #Creates a dictionary, that maps the names to according indicies!!!1!11!
-        #Essential to create the matrix
+        num_edges = sum(len(point.connectedPoints) for point in points)
+        num_nodes = len(points)
+        cls.AMatrix = np.zeros((num_edges * 2, num_nodes * 2))
+
         nodeIndices = {point.name: i for i, point in enumerate(points)}
         row = 0
-        for edge in edges:
-            #splits edge in start and end point
-            start, end = edge
-            cls.AMatrix[row, nodeIndices[start] * 2] = 1
-            cls.AMatrix[row+1, nodeIndices[start] * 2 + 1] = 1
-            cls.AMatrix[row, nodeIndices[end] * 2] = -1
-            cls.AMatrix[row+1, nodeIndices[end] * 2 + 1] = -1
-            row += 2
-        #print(f"AMatrix:\n {cls.AMatrix}")
-    
+        for point in points:
+            for connectedPoint in point.get_connection():
+                start, end = point.name, connectedPoint.name
+                cls.AMatrix[row, nodeIndices[start] * 2] = 1
+                cls.AMatrix[row+1, nodeIndices[start] * 2 + 1] = 1
+                cls.AMatrix[row, nodeIndices[end] * 2] = -1
+                cls.AMatrix[row+1, nodeIndices[end] * 2 + 1] = -1
+                row += 2
+        print(f"AMatrix:\n {cls.AMatrix}")
+
     @classmethod
     def create_lVec(cls):
-        # Reset the lVec attribute
-        cls.lVec = np.empty((0,1))  # Initialize with 1 column, so you can add
-        cls.LVec = np.empty((0,0))
-        # Recalculate LVec
-        cls.LVec = cls.AMatrix @ cls.xVec  # Care about order, matrices are not commutative
+        cls.lVec = np.empty((0, 1))
+        cls.LVec = cls.AMatrix @ cls.xVec
         numRows = cls.LVec.shape[0] // 2
         cls.LVec = cls.LVec.reshape(numRows, 2)
-        #print(f"LVec:\n {cls.LVec}")
 
-        for i in range(0, int(cls.LVec.shape[0])-1): 
-            # Calculating the distance between the two points 
-            numVecX = np.array([math.sqrt(cls.LVec[i,0]**2 + cls.LVec[i, 1]**2)]) 
+        for i in range(0, cls.LVec.shape[0] - 1):
+            numVecX = np.array([math.sqrt(cls.LVec[i, 0] ** 2 + cls.LVec[i, 1] ** 2)])
             cls.lVec = np.vstack((cls.lVec, numVecX))
-            
-            numVecY = np.array([math.sqrt(cls.LVec[i+1,0]**2 + cls.LVec[i+1,1]**2)]) 
-            cls.lVec = np.vstack((cls.lVec, numVecY)) 
 
-        #print(f"lVec:\n {cls.lVec}")
+            numVecY = np.array([math.sqrt(cls.LVec[i+1, 0] ** 2 + cls.LVec[i+1, 1] ** 2)])
+            cls.lVec = np.vstack((cls.lVec, numVecY))
+
+        print(f"lVec:\n {cls.lVec}")
         if len(cls.lVecList) >= 2:
             cls.lVecList.pop(0)
         cls.lVecList.append(cls.lVec)
@@ -164,104 +131,135 @@ class Calculation:
     @classmethod
     def calculate_error(cls):
         if len(cls.lVecList) >= 2:
-            cls.eVec = np.empty((0,0))
-            firstlVec = cls.lVecList[0]
-            secondlVec = cls.lVecList[1]
-            differences = secondlVec - firstlVec
-            cls.eVec = differences
-            #print(f"Differences:\n{cls.eVec}")
-
+            cls.eVec = cls.lVecList[1] - cls.lVecList[0]
         else:
-            print("Not enough lVecs in lVecList to calculate differences.")
-    
-    @classmethod
-    def optimize_point(cls, point: Point, fixedPoint : Point):
-        # Calculate the initial distance between the points
-        initial_distance = np.linalg.norm(np.array([point.posX - fixedPoint.posX, point.posY - fixedPoint.posY]))
+            cls.eVec = np.zeros((len(cls.lVec), 1))
 
-        # Define the residual function
-        def residual_function(point_coords):
-            # Update the position of the point with the new coordinates
-            point.update_position(point_coords[0], point_coords[1])
-            
-            # Recalculate xVec, AMatrix, and lVec
-            cls.create_xVec(Point.allPoints)
-            cls.create_AMatrix(Point.allPoints)
-            cls.create_lVec()
-            
-            # Calculate the error
-            cls.calculate_error()
-            
-            # Calculate the distance constraint residual
-            distance = np.linalg.norm(np.array([point_coords[0] - fixedPoint.posX, point_coords[1] - fixedPoint.posY]))
-            distance_residual = distance - initial_distance
-            
-            # Return the residuals, including the distance constraint residual
-            return np.append(cls.eVec.flatten(), distance_residual)
+        print(f"Differences:\n{cls.eVec}")
 
-        # Initial position of the free point
-        initial_position = [point.posX, point.posY]
-
-        # Optimize the position of the point
-        result = least_squares(residual_function, initial_position)
-
-        # Extract the optimized position
-        optimized_position = result.x
-        print("Optimized Position:", optimized_position)
-
-        # Update the position of the free point with the optimized coordinates
-        point.update_position(optimized_position[0], optimized_position[1])
-
-        # Final recalculation of xVec, AMatrix, and lVec
-        cls.create_xVec(Point.allPoints)
-        cls.create_AMatrix(Point.allPoints)
-        cls.create_lVec()
-        cls.calculate_error()
-            
-            
-
-p0Vec = Point("A",0, 0, True)
-p1Vec = Point("B",10, 35, False)
-p2Vec = Point("C",-25, 10, False)
+p0Vec = Point("A", 0, 0, False)
+p1Vec = Point("B", 10, 35, False)
+p2Vec = Point("C", -25, 10, False)
 centerVec = Center("center", -30, 0, p2Vec)
 
 p0Vec.add_connection(p1Vec)
 p1Vec.add_connection(p2Vec)
-
-
-Calculation.create_xVec(Point.allPoints)
-Calculation.create_AMatrix(Point.allPoints)
-Calculation.create_lVec()
-
-centerVec.rotate_point(10)
-print("\n Winkel erhöht \n")
 
 Calculation.create_xVec(Point.allPoints)
 Calculation.create_AMatrix(Point.allPoints)
 Calculation.create_lVec()
 Calculation.calculate_error()
 
-Calculation.optimize_point(p1Vec, p2Vec)
-
+print("\n Winkel ändern \n")
 centerVec.rotate_point(10)
 
-Calculation.optimize_point(p1Vec, p2Vec)
+Calculation.create_xVec(Point.allPoints)
+Calculation.create_AMatrix(Point.allPoints)
+Calculation.create_lVec()
+Calculation.calculate_error()
 
-
-def update(num, p0Vec):
-
-    ax.clear()
-    Calculation.optimize_point(p1Vec, p2Vec)
-    centerVec.rotate_point(3)
-    print(f"Distance: {math.sqrt((p1Vec.posX - p2Vec.posY)**2 + (p1Vec.posY - p2Vec.posY)**2 )}")
-    #p0Vec.update_position(p0Vec.posX+1, p0Vec.posY)
-    pos = (nx.get_node_attributes(C, 'pos'))
-    pos.update(nx.get_node_attributes(P, 'pos'))
-    nx.draw(C, pos, with_labels=True, node_size=350, node_color="red", font_size=10, font_weight="bold", edge_color="red", style="dashed")
-    nx.draw(P, pos, with_labels=True, node_size=350, node_color="skyblue", font_size=10, font_weight="bold")
-    
+points = [ p0Vec, p1Vec, p2Vec]
 
 fig, ax = plt.subplots()
-ani = animation.FuncAnimation(fig, update, frames=range(800), fargs=(p0Vec,), interval=300, repeat=False)
+
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+import numpy as np
+import math
+
+class Point:
+    def __init__(self, name, posX, posY, isFixed):
+        self.name = name
+        self.posX = posX
+        self.posY = posY
+        self.isFixed = isFixed
+        self.connectedPoints = []
+
+    def update_position(self, newPosX, newPosY):
+        if not self.isFixed:
+            self.posX = newPosX
+            self.posY = newPosY
+
+    def add_connection(self, *points):
+        for point in points:
+            if isinstance(point, Point) and point not in self.connectedPoints:
+                self.connectedPoints.append(point)
+
+class Center:
+    _instance = None
+
+    def __new__(cls, name, posX, posY, rotatingPoint, angle=None):
+        if cls._instance is None:
+            cls._instance = super(Center, cls).__new__(cls)
+            cls._instance.name = name
+            cls._instance.posX = posX
+            cls._instance.posY = posY
+            cls._instance.rotatingPoint = rotatingPoint
+        return cls._instance
+
+    def __init__(self, name, posX, posY, rotatingPoint, angle=None):
+        if not hasattr(self, 'initialized'):
+            self.name = name
+            self.posX = posX
+            self.posY = posY
+            self.angle = angle
+            self.rotatingPoint = rotatingPoint
+            self.radius = math.sqrt((self.posX - self.rotatingPoint.posX) ** 2 + (self.posY - self.rotatingPoint.posY) ** 2)
+            self.initialized = True
+
+    def rotate_point(self, degree):
+        if self.angle is None:
+            self.angle = math.atan2(self.rotatingPoint.posY - self.posY, self.rotatingPoint.posX - self.posX)
+        else:
+            newX = self.radius * math.cos(self.angle)
+            newY = self.radius * math.sin(self.angle)
+            self.rotatingPoint.update_position(newX, newY)
+
+        rad = math.radians(degree)
+        newAngle = self.angle + rad
+        newPosX = self.posX + self.radius * math.cos(newAngle)
+        newPosY = self.posY + self.radius * math.sin(newAngle)
+        self.rotatingPoint.update_position(newPosX, newPosY)
+        self.angle = newAngle
+
+p0Vec = Point("A", 0, 0, False)
+p1Vec = Point("B", 10, 35, False)
+p2Vec = Point("C", -25, 10, False)
+centerVec = Center("center", -30, 0, p2Vec)
+
+p0Vec.add_connection(p1Vec)
+p1Vec.add_connection(p2Vec)
+
+points = [p0Vec, p1Vec, p2Vec, centerVec]
+
+fig, ax = plt.subplots()
+
+def update(num):
+    ax.clear()
+    # Bewege p1Vec um 1 in X-Richtung
+    p1Vec.update_position(p1Vec.posX + 1, p1Vec.posY)
+    centerVec.rotate_point(5)
+    # Zeichne die Punkte
+    for point in points:
+        ax.plot(point.posX, point.posY, 'o', markersize=10)
+        ax.text(point.posX, point.posY, point.name, fontsize=12, ha='right')
+
+    # Zeichne die Verbindungen
+    for point in points[:-1]:  # Der letzte Punkt ist centerVec und hat keine Verbindung
+        for connectedPoint in point.connectedPoints:
+            ax.plot([point.posX, connectedPoint.posX], [point.posY, connectedPoint.posY], 'r-')
+
+    # Zeichne centerVec und seine Verbindung
+    ax.plot(centerVec.posX, centerVec.posY, 'o', markersize=10, color='green')
+    ax.text(centerVec.posX, centerVec.posY, centerVec.name, fontsize=12, ha='right')
+    ax.plot([centerVec.posX, centerVec.rotatingPoint.posX], [centerVec.posY, centerVec.rotatingPoint.posY], 'g--')
+
+    ax.set_xlim(-50, 50)
+    ax.set_ylim(-10, 50)
+    ax.set_xlabel('X-Achse')
+    ax.set_ylabel('Y-Achse')
+    ax.set_title('Punkte und Verbindungen')
+
+ani = animation.FuncAnimation(fig, update, frames=range(800), interval=300, repeat=False)
 
 plt.show()
