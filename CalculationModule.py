@@ -8,34 +8,28 @@ class Center:
     """Since we only want one rotation point, a Singleton is used here"""
     _instance = None
 
-    def __new__(cls, name: str, posX: int, posY: int, rotatingPoint, angle: float = None):
+    def __new__(cls, name: str, posX: int, posY: int, rotatingPoint):
         if cls._instance is None:
             cls._instance = super(Center, cls).__new__(cls)
             cls._instance.name = name
             cls._instance.posX = posX
             cls._instance.posY = posY
             cls._instance.rotatingPoint = rotatingPoint
-            
         return cls._instance
 
-    def __init__(self, name: str, posX: int, posY: int, rotatingPoint, angle: float = None):
+    def __init__(self, name: str, posX: int, posY: int, rotatingPoint):
         if not hasattr(self, 'initialized'):
             self.name = name
             self.posX = posX
             self.posY = posY
-            self.angle = angle
             self.rotatingPoint = rotatingPoint
             self.radius = math.sqrt((self.posX - self.rotatingPoint.posX) ** 2 + (self.posY - self.rotatingPoint.posY) ** 2)
+            self.angle = math.atan2( self.rotatingPoint.posY - self.posY, self.rotatingPoint.posX - self.posX)
+            print(f"Radius: {self.radius}")
+           
             self.initialized = True
 
     def rotate_point(self, degree: float):
-        if self.angle is None:
-            self.angle = math.atan2(self.rotatingPoint.posY - self.posY, self.rotatingPoint.posX - self.posX)
-            
-        else:
-            newX = self.radius * math.cos(self.angle)
-            newY = self.radius * math.sin(self.angle)
-            self.rotatingPoint.update_position(newX, newY)
         
         # Convert degree to radians
         rad = math.radians(degree)
@@ -51,8 +45,7 @@ class Center:
 
 class Point:
     """These are points that are not center of a circle"""
-    allPoints = []
-
+    
     def __init__(self, name: str, posX: int, posY: int, isFixed: bool):
         self.name = name
         self.posX = posX
@@ -60,8 +53,7 @@ class Point:
         self.isFixed = isFixed
         self.vec = np.array([[self.posX], [self.posY]])
         self.connectedPoints = []
-        Point.allPoints.append(self)  # adds Point object to this list
-
+        
     def get_position(self):
         return self.posX, self.posY
 
@@ -71,63 +63,98 @@ class Point:
             self.posY = newPosY
             self.vec = np.array([[self.posX], [self.posY]])  # Update the vec attribute
 
-    def add_connection(self, *points):
-        for point in points:
-            if isinstance(point, Point) and point not in self.connectedPoints:
-                self.connectedPoints.append(point)
+    def add_connection(self, point):
+        if isinstance(point, Point) and point not in self.connectedPoints:
+            self.connectedPoints.append(point)
 
     def get_connection(self):
         return self.connectedPoints
 
-def distance(p1, p2):
-    return np.linalg.norm(np.array(p1.get_position()) - np.array(p2.get_position()))
+class Calculation():
+    @classmethod
+    def distance(cls, p1, p2):
+        return np.linalg.norm(np.array(p1.get_position()) - np.array(p2.get_position()))
+    
+    @classmethod
+    def residuals(cls, params, fixedPoints, desiredDistances):
+        x, y = params
+        tempPoint = Point("Temp", x, y, False)
+        residuals = []
+        for fixedPoint, desiredDistance in zip(fixedPoints, desiredDistances):
+            currentDistance = cls.distance(tempPoint, fixedPoint)
+            residuals.append(currentDistance - desiredDistance)
+        return residuals
+    
+    @classmethod
+    def optimize_all_positions(cls, points, distances, tolerance=0.6, max_iterations=100):
+        
+        for _ in range(max_iterations):
+            max_error = 0.3
+            for i, (p1, p2, desiredDistance) in enumerate(distances):  # Hier erwarten wir 3 Werte
+                
+                if not p1.isFixed:  # Nur Punkte optimieren, die nicht fest sind
+                    initialPosition = p1.get_position()
+                    
+                    fixedPoints = [p2] #not fixed in the sense that it doesn´t move, just the point the distance is referenced to 
+                    desiredDistances = [desiredDistance]
+                    for p, f, d in distances:  
+                        if p == p1 and not p.isFixed:
+                            fixedPoints.append(f)
+                            desiredDistances.append(d)
+                    result = least_squares(cls.residuals, initialPosition, jac='2-point', args=(fixedPoints, desiredDistances), max_nfev=1000)
+                    p1.update_position(result.x[0], result.x[1])
+                    error = abs(cls.distance(p1, p2) - desiredDistance)
+                    if error > max_error:
+                        max_error = error
+            if max_error < tolerance:
+                break
 
-def residuals(params, fixed_point, desired_distance):
-    x, y = params
-    temp_point = Point("Temp", x, y, False)
-    current_distance = distance(temp_point, fixed_point)
-    return [current_distance - desired_distance]
-
-def optimize_positions(p1, p2, desiredDistance):
-    # Gewünschte Distanz zwischen den Punkten
-    print(f"Desire Distance: {desiredDistance}")
-    # Anfangsposition für p1
-    initial_position = p1.get_position()
-    print(f"Inital Position {initial_position}")
-
-    # Least-Squares-Optimierung durchführen, um p1 anzupassen
-    result = least_squares(residuals, initial_position, args=(p2, desiredDistance))
-
-    # Aktualisiere die Position von p1 mit den optimierten Werten
-    p1.update_position(result.x[0], result.x[1])
+        return [p.get_position() for p in points]
 
 
-p0Vec = Point("A", 0, 0, False)
+
+p0Vec = Point("A", 0, 0, True)  # p0Vec auf True gesetzt
 p1Vec = Point("B", 10, 35, False)
 p2Vec = Point("C", -25, 10, False)
-p3Vec = Point("C", 25, 10, False)
+p3Vec = Point("D", 25, 10, False)
+p4Vec = Point("E", 5, 10, True)
 centerVec = Center("Center", -30, 0, p2Vec)
 
-desiredDistancep1p2 = distance(p1Vec, p2Vec)
-desiredDistancep0p1 = distance(p0Vec, p2Vec)
-desiredDistancep1p3 = distance(p1Vec, p3Vec)
+print(f"Winkel: {math.degrees(math.atan2(p2Vec.posY - centerVec.posY, p2Vec.posX - centerVec.posX))}")
 
-p0Vec.add_connection(p1Vec)
-p1Vec.add_connection(p2Vec)
+desiredDistancep1p2 = Calculation.distance(p1Vec, p2Vec)
+desiredDistancep0p1 = Calculation.distance(p0Vec, p2Vec)
+desiredDistancep1p3 = Calculation.distance(p1Vec, p3Vec)
+desiredDistancep3p4 = Calculation.distance(p4Vec, p3Vec)
+
+p1Vec.add_connection(p0Vec)
+p2Vec.add_connection(p1Vec)
 p3Vec.add_connection(p1Vec)
+p3Vec.add_connection(p4Vec)
 
-points = [p0Vec, p1Vec, p2Vec, p3Vec, centerVec]
+#It is important to list like the following: moving Point - fixed/referenced Point - distance
+distances = [(p1Vec, p2Vec, desiredDistancep1p2), (p1Vec, p0Vec, desiredDistancep0p1), (p3Vec, p1Vec, desiredDistancep1p3), (p3Vec, p4Vec, desiredDistancep3p4)]
+points = [p0Vec, p1Vec, p2Vec, p3Vec, p4Vec]
+
+# Listen zum Speichern der Positionen
+p1_positions = []
+p2_positions = []
+p3_positions = []
+
     
 def update(num):
     ax.clear()
     
     # Ändere die Position von p2Vec
-    centerVec.rotate_point(10)
+    centerVec.rotate_point(1)
     # Optimiere die Position von p1Vec basierend auf p2Vec
-    optimize_positions(p1Vec, p2Vec, desiredDistancep1p2)
-    optimize_positions(p1Vec, p0Vec, desiredDistancep0p1)
-    optimize_positions(p3Vec, p1Vec, desiredDistancep1p3)
-    print(f"Distance: {distance(p1Vec, p2Vec)}")
+    Calculation.optimize_all_positions(points, distances)
+    
+    # Speichere die aktuellen Positionen
+    p1_positions.append(p1Vec.get_position())
+    p2_positions.append(p2Vec.get_position())
+    p3_positions.append(p3Vec.get_position())
+
     # Zeichne die Punkte
     for point in points:
         ax.plot(point.posX, point.posY, 'o', markersize=10)
@@ -137,11 +164,19 @@ def update(num):
     for point in points[:-1]:  # Der letzte Punkt ist centerVec und hat keine Verbindung
         for connected_point in point.get_connection():
             ax.plot([point.posX, connected_point.posX], [point.posY, connected_point.posY], 'r-')
-
+    
     # Zeichne centerVec und seine Verbindung
     ax.plot(centerVec.posX, centerVec.posY, 'o', markersize=10, color='green')
     ax.text(centerVec.posX, centerVec.posY, centerVec.name, fontsize=12, ha='right')
     ax.plot([centerVec.posX, centerVec.rotatingPoint.posX], [centerVec.posY, centerVec.rotatingPoint.posY], 'g--')
+
+    # Zeichne die Bahnkurven der Punkte
+    if len(p1_positions) > 1:
+        ax.plot([pos[0] for pos in p1_positions], [pos[1] for pos in p1_positions], label='Punkt B Bahnkurve')
+    if len(p2_positions) > 1:
+        ax.plot([pos[0] for pos in p2_positions], [pos[1] for pos in p2_positions], label='Punkt C Bahnkurve')
+    if len(p3_positions) > 1:
+        ax.plot([pos[0] for pos in p3_positions], [pos[1] for pos in p3_positions], label='Punkt D Bahnkurve')
 
     ax.set_xlim(-50, 50)
     ax.set_ylim(-10, 50)
@@ -149,7 +184,9 @@ def update(num):
     ax.set_ylabel('Y-Achse')
     ax.set_title('Punkte und Verbindungen')
 
-fig, ax = plt.subplots()
-ani = animation.FuncAnimation(fig, update, frames=range(800), interval=300, repeat=False)
+    ax.legend()
 
+
+fig, ax = plt.subplots() 
+ani = animation.FuncAnimation(fig, update, frames=range(800), interval=100, repeat=False) 
 plt.show()
