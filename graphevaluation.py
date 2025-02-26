@@ -55,7 +55,7 @@ class GraphEvaluation:
         if circle_type == 2:
             mask = np.zeros(edges.shape, dtype=np.uint8)
             # nur rote Kreise
-            mask = cv2.inRange(output, (255, 0, 0), (255, 50, 50))
+            mask = cv2.inRange(output, (255, 0, 0), (200, 0, 0))
             edges = cv2.bitwise_not(edges, edges, mask=mask)
         circles = cv2.HoughCircles(image=edges,
                                 method=cv2.HOUGH_GRADIENT,
@@ -89,7 +89,7 @@ class GraphEvaluation:
 
         return fig
 
-    def plotly_mechanism(self, centerVec, points, distances):
+    def plotly_mechanism(self, centerVec, points, distances, winkel):
         fig = go.Figure()
         
         print(f"centerVec.rotating: {centerVec.rotatingPoint.posX}, {centerVec.rotatingPoint.posY}")
@@ -103,24 +103,29 @@ class GraphEvaluation:
                             mode='lines', line=dict(color='red'), showlegend=False)
         
         ani_dict = {point.name: [] for point in points if not point.isFixed}
+        trajec_dict = {point.name: [] for point in points if not point.isFixed}
         # Animation
         frames = []
-        frames_count = 800
+        frames_count = 360
+
+        degree = winkel
 
         for frame_num in range(frames_count):
 
             centerVec.rotate_point(1)
+            degree += 1
             Calculation.optimize_all_positions(points, distances)
             
             # Limit der Achsen
-            min_x = min([point.posX for point in points])-int(distance_center_n)
-            max_x = max([point.posX for point in points])+int(distance_center_n)
-            min_y = min([point.posY for point in points])-int(distance_center_n)
-            max_y = max([point.posY for point in points])+int(distance_center_n)
+            min_x = min(min([point.posX for point in points]), centerVec.posX)-int(distance_center_n*2)
+            max_x = max(max([point.posX for point in points]), centerVec.posX)+int(distance_center_n*2)
+            min_y = min(min([point.posY for point in points]), centerVec.posY)-int(distance_center_n*2)
+            max_y = max(max([point.posY for point in points]), centerVec.posY)+int(distance_center_n*2)
 
             for point in points:
                 if not point.isFixed:
                     ani_dict[point.name].append(point.get_position())
+                    trajec_dict[point.name].append((point.get_position(), degree))
 
             #print(f"Ani_dict: {ani_dict}")
             
@@ -141,7 +146,7 @@ class GraphEvaluation:
                         x=[point.posX, connectedPoint.posX],
                         y=[point.posY, connectedPoint.posY],
                         mode='lines', 
-                        line=dict(color='blue'),
+                        line=dict(color='black'),
                         showlegend=False
                         ))
                     
@@ -188,7 +193,7 @@ class GraphEvaluation:
         )
         fig.add_trace(circle)        
 
-        return fig        
+        return fig, trajec_dict        
         
     
     def save_image(self):

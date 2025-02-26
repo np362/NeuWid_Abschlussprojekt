@@ -110,28 +110,66 @@ with tab1:
     elif uploaded_file is None and generate_file:
         st.error("Es wurde keine Datei hochgeladen.")
 
+if "prev_last_index" not in st.session_state:
+    st.session_state.prev_last_index = len(st.session_state.dataframe) - 1
+
+def update_dataframe():
+    edited = st.session_state.data_editor
+    if isinstance(edited_data, pd.DataFrame):
+        st.session_state.dataframe = edited_data
+    else:
+        st.session_state.dataframe = pd.DataFrame(edited_data)
+
+    st.session_state.prev_last_index = len(st.session_state.dataframe) - 2
+
+def swap_rows():
+    idx1 = st.session_state.idx1
+    idx2 = st.session_state.idx2
+    df = st.session_state.dataframe.copy()
+    df.iloc[[idx1, idx2]] = df.iloc[[idx2, idx1]].to_numpy() 
+    st.session_state.dataframe = df
+
+def add_connection():
+    idx1 = st.session_state.idx1
+    idx2 = st.session_state.idx2
+    if idx1 != idx2:
+        points[idx1].add_connection(points[idx2])
+        st.session_state.connections.append((idx1, idx2))
+        desiredDistance.append(Calculation.distance(points[idx1], points[idx2]))
+        distances.append((points[idx1], points[idx2], desiredDistance[-1]))
+        print(f"Verbindung hinzugefügt: {points[idx1].name} - {points[idx2].name}")
+    else:
+        st.error("Die Punkte dürfen nicht identisch sein.")
+
+def remove_connection():
+            idx1 = st.session_state.idx1
+            idx2 = st.session_state.idx2
+            if idx1 != idx2 and points[idx2] in points[idx1].connectedPoints:
+                points[idx1].remove_connection(points[idx2])
+                st.session_state.connections.remove((idx1, idx2))
+                desiredDistance.remove(Calculation.distance(points[idx1], points[idx2]))
+                distances.remove((points[idx1], points[idx2], desiredDistance[-1]))
+            else:
+                st.error("Die Punkte dürfen nicht identisch sein.")
+
+def vorlage(option):
+    if option == 1:
+        st.session_state.dataframe = vorlage1
+        st.session_state.connections = con_vorlage1
+    elif option == 2:
+        st.session_state.dataframe = vorlage2
+        st.session_state.connections = con_vorlage2
+    elif option == 3:
+        st.session_state.dataframe = vorlage3
+        st.session_state.connections = con_vorlage3
+
+def vorlage2():
+    st.session_state.dataframe = vorlage2
+    st.session_state.connections = con_vorlage2
+
+
 with tab2:
     st.subheader("Mechanismus erstellen")
-    
-    if "prev_last_index" not in st.session_state:
-        st.session_state.prev_last_index = len(st.session_state.dataframe) - 1
-
-    def update_dataframe():
-        edited = st.session_state.data_editor
-        if isinstance(edited_data, pd.DataFrame):
-            st.session_state.dataframe = edited_data
-        else:
-            st.session_state.dataframe = pd.DataFrame(edited_data)
-
-        st.session_state.prev_last_index = len(st.session_state.dataframe) - 2
-
-    def swap_rows():
-        idx1 = st.session_state.idx1
-        idx2 = st.session_state.idx2
-        df = st.session_state.dataframe.copy()
-        df.iloc[[idx1, idx2]] = df.iloc[[idx2, idx1]].to_numpy() 
-        st.session_state.dataframe = df
-    
     
     col1, col2 = st.columns([2, 1])
 
@@ -157,6 +195,7 @@ with tab2:
     #edited_data = st.session_state.edited_data
 
     col3, col4 = st.columns([3, 1])
+    save_col1, save_col2 = st.columns([1, 1])
     
     if st.button("Mechanismus erstellen"):
         
@@ -187,31 +226,6 @@ with tab2:
                 else:
                     distances.append((point, connected, desiredDistance[-1]))
 
-        def add_connection():
-            idx1 = st.session_state.idx1
-            idx2 = st.session_state.idx2
-            if idx1 != idx2:
-                points[idx1].add_connection(points[idx2])
-                st.session_state.connections.append((idx1, idx2))
-                desiredDistance.append(Calculation.distance(points[idx1], points[idx2]))
-                distances.append((points[idx1], points[idx2], desiredDistance[-1]))
-                print(f"Verbindung hinzugefügt: {points[idx1].name} - {points[idx2].name}")
-            else:
-                st.error("Die Punkte dürfen nicht identisch sein.")
-
-        def remove_connection():
-            idx1 = st.session_state.idx1
-            idx2 = st.session_state.idx2
-            if idx1 != idx2:
-                points[idx1].remove_connection(points[idx2])
-                st.session_state.connections.remove((idx1, idx2))
-                desiredDistance.remove(Calculation.distance(points[idx1], points[idx2]))
-                distances.remove((points[idx1], points[idx2], desiredDistance[-1]))
-            else:
-                st.error("Die Punkte dürfen nicht identisch sein.")
-
-        
-
         # Ändert Inertialwinkel
         centerVec.rotate_point(winkel)
 
@@ -224,7 +238,7 @@ with tab2:
                 if point == centerVec.rotatingPoint:
                     f -= 2
                 if point.connectedPoints:
-                    f -= 1
+                    f -= len(point.connectedPoints)
             #f = f - len(Point.connectedPoints)
             print(f"DOF: {f}")
             return f == 0, f
@@ -232,15 +246,30 @@ with tab2:
         with col3:
             if DOF == True:
                 st.success('Mechanismus wurde erfolgreich erstellt')
-                mechanism_fig = GraphEvaluation().plotly_mechanism(centerVec, points, distances)
+                mechanism_fig, traject_dict = GraphEvaluation().plotly_mechanism(centerVec, points, distances, winkel)
                 st.plotly_chart(mechanism_fig)
+                
+                data_trajec = []
+                for name, values in traject_dict.items():
+                    for position, degree in values:
+                        data_trajec.append([name, position, degree])
+                trajec_df = pd.DataFrame(data_trajec, columns=["Punkt", "x  y", "Winkel"])
 
-                # Save the mechanism as a csv file
-                csv_name = "mechanism.csv"
-                st.download_button(label="Mechanismus als CSV speichern",
-                                    data=edited_data.to_csv(index=False),
-                                    file_name=csv_name,
-                                    mime="text/csv")
+                with save_col1:
+                    # Save the mechanism as a csv file
+                    csv_name = "mechanism.csv"
+                    st.download_button(label="Mechanismus als CSV speichern",
+                                        data=edited_data.to_csv(index=False),
+                                        file_name=csv_name,
+                                        mime="text/csv")
+                with save_col2:
+                    # Save the trajectories as a csv file
+                    csv_name = "trajectories.csv"
+                    csv_data = trajec_df.to_csv(index=False)
+                    st.download_button(label="Trajektorien als CSV speichern",
+                                        data=csv_data,
+                                        file_name=csv_name,
+                                        mime="text/csv")
 
 
                 # gif_name = "mechanism.gif"
@@ -261,10 +290,8 @@ with tab2:
                     st.write("Füge mindestens", int(f), "Verbindungen hinzu.")
         with col4:
             st.write("Erstelle Verbindungen zwischen den Punkten:")
-            if st.button("Verbindung hinzufügen", on_click=add_connection):
-                pass
-            if st.button("Verbindung entfernen", on_click=remove_connection):
-                pass
+            st.button("Verbindung hinzufügen", on_click=add_connection)
+            st.button("Verbindung entfernen", on_click=remove_connection)
     
 
 with tab3:
@@ -274,17 +301,59 @@ with tab3:
     colsave1, colsave2, colsave3 = st.columns(3)
 
     with colsave1:
-        # Button zum Speichern der Bewegung als csv-Datei
-        if st.button("Bahnkurve als csv-Datei speichern"):
-            st.write("Bahnkurve erfolgreich in einer csv-Datei gespeichert!")
+        vorlage1 = pd.DataFrame({
+                "Punkt": ["B", "C", "D", "A", "E", "center"],
+                "x": [0, 10, -25, 25, 5, -30],
+                "y": [0, 35, 10, 10, 10, 0],
+                "Fest": [True, False, False, False, True, True]  # True = fest, False = lose
+            })
+        con_vorlage1 = [
+                (0, 1),
+                (1, 2),
+                (3, 1),
+                (3, 4)
+            ]
+        # Button zum Verwenden der Vorlage 1
+        if st.button("Vorlage 1", on_click=vorlage(1)):
+            st.write("Vorlage 1 erfolgreich geladen!")
     with colsave2:
-        # Button zum Speichern der Animation als GIF
-        if st.button("GIF Speichern"):
-            st.write("Animation als GIF gespeichert!")
+        vorlage2 = pd.DataFrame({
+                        "Punkt": ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "Center"],
+                        "x": [10, -20, 0, 30, -15, 5, -10, 25, 35, 20, 15],
+                        "y": [25, -10, 5, 30, 20, 10, 0, 35, 15, 5, 10],
+                        "Fest": [False, False, False, False, False, False, False, False, False, True, True]
+                    })
+        con_vorlage2 = [
+                    (0, 1),  
+                    (1, 2),  
+                    (2, 3),  
+                    (3, 4),  
+                    (4, 5),  
+                    (5, 6),  
+                    (6, 7),  
+                    (7, 8),  
+                    (8, 9),  
+                    (9, 10)  
+                ]
+        # Button zum Verwenden der Vorlage 2
+        if st.button("Vorlage 2", on_click=vorlage2):
+            st.write("Vorlage 2 erfolgreich geladen!")
     with colsave3:
-        # Button zum Speichern der Animation als mp4
-        if st.button("Video Speichern"):
-            st.write("Animation im MP4-Format gespeichert!")
+        vorlage3 = pd.DataFrame({
+                "Punkt": ["B", "C", "D", "A", "E", "center"],
+                "x": [0, 10, -25, 25, 5, -30],
+                "y": [0, 35, 10, 10, 10, 0],
+                "Fest": [True, False, False, False, True, True]  # True = fest, False = lose
+            })
+        con_vorlage3 = [
+                (0, 1),
+                (1, 2),
+                (3, 1),
+                (3, 4)
+            ]
+        # Button zum Verwenden der Vorlage 3
+        if st.button("Vorlage 3", on_click=vorlage(3)):
+            st.write("Vorlage 3 erfolgreich geladen!")
 
 
 
