@@ -15,19 +15,33 @@ st.title("Mechanismusanalyse")
 
 if "dataframe" not in st.session_state:
         st.session_state.dataframe = pd.DataFrame({
-            "Punkt": ["B", "C", "E", "center"],
-            "x": [0, 10, -25, -30],
-            "y": [0, 35, 10, 0],
-            "Fest": [True, False, False, True]  # True = fest, False = lose
+            "Punkt": ["B", "C", "D", "A", "E", "center"],
+            "x": [0, 10, -25, 25, 5, -30],
+            "y": [0, 35, 10, 10, 10, 0],
+            "Fest": [True, False, False, False, True, True]  # True = fest, False = lose
         })
+
+if "connections" not in st.session_state:
+    st.session_state.connections = [
+        (0, 1),
+        (1, 2),
+        (3, 1),
+        (3, 4)
+    ]
 
 with st.sidebar:
         st.subheader("Mechanismus bearbeiten")
 
         # Slider für den Kurbelwinkel (0° bis 360°)
         winkel = st.slider("Kurbelwinkel (°)", 0, 360, 0, step=1)
+
         st.write("Ändere die Skalierung des Graphen:")
+
         scale = st.number_input("Skalierungsfaktor", min_value=0.1, max_value=10.0, value=1.0, step=0.1)
+
+        st.write("Aktuelle Verbindungen:")
+        for idx1, idx2 in st.session_state.connections:
+            st.write(st.session_state.dataframe.iloc[idx1]["Punkt"], "-", st.session_state.dataframe.iloc[idx2]["Punkt"])
         
         
 tab1, tab2, tab3 = st.tabs(["Mechanismus laden", "Mechanismus erstellen", "Mechanismusvorlagen"])
@@ -87,10 +101,11 @@ with tab1:
                 st.pyplot(fig=plt)
         
         elif uploaded_file.type == "text/csv":
-            st.session_state.dataframe = pd.read_csv(uploaded_file)
-            """
-                read csv file
-            """
+            if generate_file:
+                st.success("Der Mechanismus wurde erfolgreich hochgeladen!")
+                st.session_state.dataframe = pd.read_csv(uploaded_file)
+                st.write(st.session_state.dataframe)
+
             
     elif uploaded_file is None and generate_file:
         st.error("Es wurde keine Datei hochgeladen.")
@@ -118,8 +133,6 @@ with tab2:
         st.session_state.dataframe = df
     
     
-
-
     col1, col2 = st.columns([2, 1])
 
     with col1:
@@ -146,16 +159,9 @@ with tab2:
     col3, col4 = st.columns([3, 1])
     
     if st.button("Mechanismus erstellen"):
-        #Point.allPoints = []
-        #Calculation.AMatrix = np.empty((0,0))
-        #Calculation.LVec = np.empty((0,0))
-        #Calculation.xVec = np.empty((0,0))
-        #Calculation.lVec = np.empty((0,1))
+        
         if Center._instance:
             Center._instance = None
-
-        #with st.spinner(text='In progress'):
-            #time.sleep(3)
 
         points = []
         desiredDistance = []
@@ -167,15 +173,26 @@ with tab2:
                 points.append(Point(node[1]["Punkt"], node[1]["x"], node[1]["y"], node[1]["Fest"]))
         
         
+        connections = st.session_state.connections
+         
+        for idx1, idx2 in connections:
+            points[idx1].add_connection(points[idx2])
 
-        for i in range(len(points)-1):
-            points[i].add_connection(points[i+1])
+        for point in points:
+            for connected in point.connectedPoints:
+                print(f"Verbindung {point.name} - {connected.name} hinzugefügt")
+                desiredDistance.append(Calculation.distance(point, connected))
+                if point.isFixed:
+                    distances.append((connected, point, desiredDistance[-1]))
+                else:
+                    distances.append((point, connected, desiredDistance[-1]))
 
         def add_connection():
             idx1 = st.session_state.idx1
             idx2 = st.session_state.idx2
             if idx1 != idx2:
                 points[idx1].add_connection(points[idx2])
+                st.session_state.connections.append((idx1, idx2))
                 desiredDistance.append(Calculation.distance(points[idx1], points[idx2]))
                 distances.append((points[idx1], points[idx2], desiredDistance[-1]))
                 print(f"Verbindung hinzugefügt: {points[idx1].name} - {points[idx2].name}")
@@ -187,28 +204,16 @@ with tab2:
             idx2 = st.session_state.idx2
             if idx1 != idx2:
                 points[idx1].remove_connection(points[idx2])
+                st.session_state.connections.remove((idx1, idx2))
                 desiredDistance.remove(Calculation.distance(points[idx1], points[idx2]))
                 distances.remove((points[idx1], points[idx2], desiredDistance[-1]))
             else:
                 st.error("Die Punkte dürfen nicht identisch sein.")
 
-        #Calculation.create_xVec(Point.allPoints)
-        #Calculation.create_AMatrix(Point.allPoints)
-        #Calculation.create_lVec()
-        #Calculation.calculate_error()
+        
 
-        print("\n Winkel ändern \n")
-        #centerVec.rotate_point(winkel)
-
-        #Calculation.create_xVec(Point.allPoints)
-        #Calculation.create_AMatrix(Point.allPoints)
-        #Calculation.create_lVec()
-        #Calculation.calculate_error()
-
-        #points = [p for p in Point.allPoints]
-        #print(points)
-        #points.append(centerVec)
-        #print(points)
+        # Ändert Inertialwinkel
+        centerVec.rotate_point(winkel)
 
         def degree_of_freedom(points):
             f = 2*(len(points))
@@ -227,8 +232,25 @@ with tab2:
         with col3:
             if DOF == True:
                 st.success('Mechanismus wurde erfolgreich erstellt')
-                mechanism_fig = GraphEvaluation().plotly_mechanism(centerVec, points)
+                mechanism_fig = GraphEvaluation().plotly_mechanism(centerVec, points, distances)
                 st.plotly_chart(mechanism_fig)
+
+                # Save the mechanism as a csv file
+                csv_name = "mechanism.csv"
+                st.download_button(label="Mechanismus als CSV speichern",
+                                    data=edited_data.to_csv(index=False),
+                                    file_name=csv_name,
+                                    mime="text/csv")
+
+
+                # gif_name = "mechanism.gif"
+                # GraphEvaluation().save_gif(mechanism_fig, gif_name)
+
+                # with open(gif_name, "rb") as gif_file:
+                #     st.download_button(label="Animation als GIF speichern",
+                #                         data=gif_file,
+                #                         file_name=gif_name,
+                #                         mime="image/gif")
             else:
                 st.error('Mechanismus kann nicht erstellt werden')
                 if f < 0:

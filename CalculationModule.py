@@ -123,31 +123,31 @@ edited_data = pd.DataFrame({
             "Fest": [True, False, False, False, True, True]  # True = fest, False = lose
         })
 
-points = []
-for node in edited_data.iterrows():
-    if node[0] == edited_data.shape[0]-1:
-        centerVec = Center(node[1]["Punkt"], node[1]["x"], node[1]["y"], points[2])
-    else:
-        points.append(Point(node[1]["Punkt"], node[1]["x"], node[1]["y"], node[1]["Fest"]))
+# points = []
+# for node in edited_data.iterrows():
+#     if node[0] == edited_data.shape[0]-1:
+#         centerVec = Center(node[1]["Punkt"], node[1]["x"], node[1]["y"], points[2])
+#     else:
+#         points.append(Point(node[1]["Punkt"], node[1]["x"], node[1]["y"], node[1]["Fest"]))
 
 
 
-# p0Vec = Point("A", 0, 0, True)  # p0Vec auf True gesetzt
-# p1Vec = Point("B", 10, 35, False)
-# p2Vec = Point("C", -25, 10, False)
-# p3Vec = Point("D", 25, 10, False)
-# p4Vec = Point("E", 5, 10, True)
-# centerVec = Center("Center", -30, 0, p2Vec)
+p0Vec = Point("A", 0, 0, True)  # p0Vec auf True gesetzt
+p1Vec = Point("B", 10, 35, False)
+p2Vec = Point("C", -25, 10, False)
+#p3Vec = Point("D", 25, 10, False)
+#p4Vec = Point("E", 5, 10, True)
+centerVec = Center("Center", -30, 0, p2Vec)
 
-# p1Vec.add_connection(p0Vec)
-# p2Vec.add_connection(p1Vec)
-# p3Vec.add_connection(p1Vec)
-# p3Vec.add_connection(p4Vec)
+p1Vec.add_connection(p0Vec)
+p1Vec.add_connection(p2Vec)
+#p3Vec.add_connection(p1Vec)
+#p3Vec.add_connection(p4Vec)
 
-points[1].add_connection(points[0])
-points[2].add_connection(points[1])
-points[3].add_connection(points[1])
-points[3].add_connection(points[4])
+# points[1].add_connection(points[0])
+# points[2].add_connection(points[1])
+# points[3].add_connection(points[1])
+# points[3].add_connection(points[4])
 
 print(f"Winkel: {math.degrees(math.atan2(centerVec.rotatingPoint.posY - centerVec.posY, centerVec.rotatingPoint.posX - centerVec.posX))}")
 
@@ -158,24 +158,24 @@ print(f"Winkel: {math.degrees(math.atan2(centerVec.rotatingPoint.posY - centerVe
 #             print(f"Distance {point1.name} - {point2.name}: {Calculation.distance(point1, point2)}")
 #             distances.append((point1, point2, Calculation.distance(point1, point2)))
 
-# desiredDistancep1p2 = Calculation.distance(p1Vec, p2Vec)
-# desiredDistancep0p1 = Calculation.distance(p0Vec, p1Vec)
-# desiredDistancep1p3 = Calculation.distance(p1Vec, p3Vec)
-# desiredDistancep3p4 = Calculation.distance(p4Vec, p3Vec)
+desiredDistancep1p2 = Calculation.distance(p1Vec, p2Vec)
+desiredDistancep0p1 = Calculation.distance(p0Vec, p1Vec)
+#desiredDistancep1p3 = Calculation.distance(p1Vec, p3Vec)
+#desiredDistancep3p4 = Calculation.distance(p4Vec, p3Vec)
 
-desiredDistancep1p2 = Calculation.distance(points[1], points[2])
-desiredDistancep0p1 = Calculation.distance(points[0], points[1])
-desiredDistancep1p3 = Calculation.distance(points[1], points[3])
-desiredDistancep3p4 = Calculation.distance(points[4], points[3])
+# desiredDistancep1p2 = Calculation.distance(points[1], points[2])
+# desiredDistancep0p1 = Calculation.distance(points[0], points[1])
+# desiredDistancep1p3 = Calculation.distance(points[1], points[3])
+#desiredDistancep3p4 = Calculation.distance(points[4], points[3])
 
 
-print(f"Connected Points: {len(points[3].connectedPoints)}")
+#print(f"Connected Points: {len(points[3].connectedPoints)}")
 
-distances = [(points[1], points[2], desiredDistancep1p2), (points[1], points[0], desiredDistancep0p1), (points[3], points[1], desiredDistancep1p3), (points[3], points[4], desiredDistancep3p4)]
+#distances = [(points[1], points[2], desiredDistancep1p2), (points[1], points[0], desiredDistancep0p1), (points[3], points[1], desiredDistancep1p3), (points[3], points[4], desiredDistancep3p4)]
 
 #It is important to list like the following: moving Point - fixed/referenced Point - distance
-#distances = [(p1Vec, p2Vec, desiredDistancep1p2), (p1Vec, p0Vec, desiredDistancep0p1), (p3Vec, p1Vec, desiredDistancep1p3), (p3Vec, p4Vec, desiredDistancep3p4)]
-#points = [p0Vec, p1Vec, p2Vec, p3Vec, p4Vec]
+distances = [(p1Vec, p2Vec, desiredDistancep1p2), (p1Vec, p0Vec, desiredDistancep0p1)]#, (p3Vec, p1Vec, desiredDistancep1p3), (p3Vec, p4Vec, desiredDistancep3p4)]
+points = [p0Vec, p1Vec, p2Vec]#, p3Vec, p4Vec]
 
 # Listen zum Speichern der Positionen
 p1_positions = []
@@ -191,18 +191,13 @@ def update(num):
     # Optimiere die Position von p1Vec basierend auf p2Vec
     Calculation.optimize_all_positions(points, distances)
     
-    # Speichere die aktuellen Positionen
-    #p1_positions.append(p1Vec.get_position())
-    #p2_positions.append(p2Vec.get_position())
+    #Speichere die aktuellen Positionen
+    p1_positions.append(p1Vec.get_position())
+    p2_positions.append(p2Vec.get_position())
     #p3_positions.append(p3Vec.get_position())
 
-    #point_positions = []
-    #for falsepoint in points:
-   #     if falsepoint[2] == False:
-  #          point_positions.append((falsepoint.get_position()))
 
-
-    # Zeichne die Punkte
+    #Zeichne die Punkte
     for point in points:
         ax.plot(point.posX, point.posY, 'o', markersize=10)
         ax.text(point.posX, point.posY, point.name, fontsize=12, ha='right')

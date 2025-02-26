@@ -6,6 +6,10 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 import networkx as nx
+from CalculationModule import Center, Point, Calculation
+import os
+import imageio
+import kaleido
 
 class GraphEvaluation:
     def __init__(self, uploaded_file=None):
@@ -85,38 +89,8 @@ class GraphEvaluation:
 
         return fig
 
-    def plotly_mechanism(self, centerVec, points):
+    def plotly_mechanism(self, centerVec, points, distances):
         fig = go.Figure()
-        #points[1].update_position(points[1].posX + 1, points[1].posY)
-        print(f"Pos points[1]: {points[1].posX}, {points[1].posY}")
-        print(f"pos centerVec: {centerVec.posX}, {centerVec.posY}")
-        #centerVec.rotate_point(5)
-
-        # Zeichne die Verbindungen
-        for point in points[:-1]:  # Der letzte Punkt ist centerVec und hat keine Verbindung
-            for connectedPoint in point.connectedPoints:
-                fig.add_trace(go.Scatter(x=[point.posX, connectedPoint.posX],
-                                        y=[point.posY, connectedPoint.posY],
-                                        mode='lines', line=dict(color='blue'),
-                                        showlegend=False))
-        # Zeichne die Punkte
-        for point in points:
-            fig.add_trace(go.Scatter(x=[point.posX], y=[point.posY], mode='markers+text',
-                                    marker=dict(size=15, color='green'),
-                                    text=[point.name],
-                                    textposition="top right",
-                                    showlegend=False))
-
-        # Zeichne centerVec und seine Verbindung
-        fig.add_trace(go.Scatter(x=[centerVec.posX], y=[centerVec.posY], mode='markers+text',
-                                marker=dict(size=15, color='green'),
-                                text=[centerVec.name],
-                                textposition="top right",
-                                showlegend=False))
-
-        fig.add_trace(go.Scatter(x=[centerVec.posX, centerVec.rotatingPoint.posX],
-                                y=[centerVec.posY, centerVec.rotatingPoint.posY],
-                                mode='lines', line=dict(color='blue', dash='dash')))
         
         print(f"centerVec.rotating: {centerVec.rotatingPoint.posX}, {centerVec.rotatingPoint.posY}")
         # Kreiserstellung für centerVec und Nachbar
@@ -128,26 +102,118 @@ class GraphEvaluation:
         circle = go.Scatter(x=circle_x, y=circle_y,
                             mode='lines', line=dict(color='red'), showlegend=False)
         
-        fig.add_trace(circle)
+        ani_dict = {point.name: [] for point in points if not point.isFixed}
+        # Animation
+        frames = []
+        frames_count = 800
 
-        fig.update_layout(title='Punkte und Verbindungen',
-                        xaxis_title='X-Achse',
-                        yaxis_title='Y-Achse',
-                        #xaxis=dict(range=[-50, 50]),
-                        #yaxis=dict(range=[-10, 50])
-                        yaxis_scaleanchor = "x",
-                        yaxis_scaleratio = 1,
+        for frame_num in range(frames_count):
+
+            centerVec.rotate_point(1)
+            Calculation.optimize_all_positions(points, distances)
+            
+            # Limit der Achsen
+            min_x = min([point.posX for point in points])-int(distance_center_n)
+            max_x = max([point.posX for point in points])+int(distance_center_n)
+            min_y = min([point.posY for point in points])-int(distance_center_n)
+            max_y = max([point.posY for point in points])+int(distance_center_n)
+
+            for point in points:
+                if not point.isFixed:
+                    ani_dict[point.name].append(point.get_position())
+
+            #print(f"Ani_dict: {ani_dict}")
+            
+            points_trace = go.Scatter(
+                x=[p.posX for p in points] + [centerVec.posX],
+                y=[p.posY for p in points] + [centerVec.posY],
+                mode='markers+text',
+                marker=dict(size=15, color='green'),
+                text=[p.name for p in points] + [centerVec.name],
+                textposition="top right",
+                showlegend=False
+            )
+
+            connections_traces = []
+            for point in points[:-1]:
+                for connectedPoint in point.connectedPoints:
+                    connections_traces.append(go.Scatter(
+                        x=[point.posX, connectedPoint.posX],
+                        y=[point.posY, connectedPoint.posY],
+                        mode='lines', 
+                        line=dict(color='blue'),
                         showlegend=False
-                        )
+                        ))
+                    
+            trajectories = []
+            for name, positions in ani_dict.items():
+                if len(positions) > 1:
+                    trajectories.append(go.Scatter(
+                        x=[pos[0] for pos in positions],
+                        y=[pos[1] for pos in positions],
+                        mode='lines',
+                        line=dict(color='blue'),
+                        visible='legendonly',
+                    ))
+                    
+            center_line = go.Scatter(
+            x=[centerVec.posX, centerVec.rotatingPoint.posX],
+            y=[centerVec.posY, centerVec.rotatingPoint.posY],
+            mode='lines', 
+                line=dict(color='blue', dash='dash'),
+                showlegend=False
+            )
+                
+            frames.append(go.Frame(data=[points_trace, center_line] + connections_traces+ trajectories))
+        fig = go.Figure(
+            data=[points_trace, center_line] + connections_traces + trajectories,
+            layout=go.Layout(
+                title="Animation",
+                xaxis=dict(range=[min_x, max_x]),
+                yaxis=dict(range=[min_y, max_y]),
+                #showlegend=False,
+                updatemenus=[dict(
+                    type="buttons",
+                    showactive=False,
+                    buttons=[dict(label="Play",
+                                method="animate",
+                                args=[None, dict(frame=dict(duration=30, redraw=True), fromcurrent=True)]),
+                            dict(label="Pause",
+                                    method="animate",
+                                    args=[[None], dict(frame=dict(duration=0, redraw=False), mode="immediate")])
+                                ]
+                )]
+            ),
+            frames=frames
+        )
+        fig.add_trace(circle)        
 
-        return fig
+        return fig        
+        
     
     def save_image(self):
         plotly_fig = self.plotly_mechanism()
         plotly_fig.write_image("mechanism.png")
 
-    def save_gif(self):
-        pass
+    def save_gif(self, mechfig, filename="mechanism.gif"):
+        os.makedirs("images", exist_ok=True)
+        frame_files = []
+
+        for i, frame in enumerate(mechfig.frames):
+            frame_name = f"images/frame_{i:03d}.png"
+            mechfig.update(frames=[frame])
+            mechfig.write_image(frame_name, format="png")
+            frame_files.append(frame_name)
+
+        images = [imageio.imread(f) for f in frame_files]
+        imageio.mimsave(filename, images, duration=0.03)
+
+        for f in frame_files:
+            os.remove(f)
+        os.rmdir("images")
+
+        return filename
+
 
     def save_video(self):
         pass
