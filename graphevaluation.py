@@ -152,8 +152,6 @@ class GraphEvaluation:
     def save_video(self):
         pass
 
-    def interpret_csv(self):
-        pass
 
 
 

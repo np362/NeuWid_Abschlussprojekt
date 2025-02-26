@@ -88,7 +88,9 @@ with tab1:
         
         elif uploaded_file.type == "text/csv":
             st.session_state.dataframe = pd.read_csv(uploaded_file)
-
+            """
+                read csv file
+            """
             
     elif uploaded_file is None and generate_file:
         st.error("Es wurde keine Datei hochgeladen.")
@@ -112,8 +114,11 @@ with tab2:
         idx1 = st.session_state.idx1
         idx2 = st.session_state.idx2
         df = st.session_state.dataframe.copy()
-        df.iloc[[idx1, idx2]] = df.iloc[[idx2, idx1]].to_numpy()  # <-- Korrigierte Zeile!
+        df.iloc[[idx1, idx2]] = df.iloc[[idx2, idx1]].to_numpy() 
         st.session_state.dataframe = df
+    
+    
+
 
     col1, col2 = st.columns([2, 1])
 
@@ -135,46 +140,73 @@ with tab2:
         st.selectbox("Erste Zeile", st.session_state.dataframe.index, key="idx1")
         st.selectbox("Zweite Zeile", st.session_state.dataframe.index, key="idx2")
         st.button("Zwei Zeilen tauschen", on_click=swap_rows)
+        
     #edited_data = st.session_state.edited_data
 
-
+    col3, col4 = st.columns([3, 1])
+    
     if st.button("Mechanismus erstellen"):
-        Point.allPoints = []
-        Calculation.AMatrix = np.empty((0,0))
-        Calculation.LVec = np.empty((0,0))
-        Calculation.xVec = np.empty((0,0))
-        Calculation.lVec = np.empty((0,1))
+        #Point.allPoints = []
+        #Calculation.AMatrix = np.empty((0,0))
+        #Calculation.LVec = np.empty((0,0))
+        #Calculation.xVec = np.empty((0,0))
+        #Calculation.lVec = np.empty((0,1))
         if Center._instance:
             Center._instance = None
 
         #with st.spinner(text='In progress'):
             #time.sleep(3)
 
-
+        points = []
+        desiredDistance = []
+        distances = []
         for node in edited_data.iterrows():
             if node[0] == edited_data.shape[0]-1:
-                centerVec = Center(node[1]["Punkt"], node[1]["x"], node[1]["y"], Point.allPoints[-1])
+                centerVec = Center(node[1]["Punkt"], node[1]["x"], node[1]["y"], points[2])
             else:
-                Point(node[1]["Punkt"], node[1]["x"], node[1]["y"], node[1]["Fest"])
+                points.append(Point(node[1]["Punkt"], node[1]["x"], node[1]["y"], node[1]["Fest"]))
+        
+        
 
-        for i in range(len(Point.allPoints)-1):
-            Point.allPoints[i].add_connection(Point.allPoints[i+1])
+        for i in range(len(points)-1):
+            points[i].add_connection(points[i+1])
 
-        Calculation.create_xVec(Point.allPoints)
-        Calculation.create_AMatrix(Point.allPoints)
-        Calculation.create_lVec()
-        Calculation.calculate_error()
+        def add_connection():
+            idx1 = st.session_state.idx1
+            idx2 = st.session_state.idx2
+            if idx1 != idx2:
+                points[idx1].add_connection(points[idx2])
+                desiredDistance.append(Calculation.distance(points[idx1], points[idx2]))
+                distances.append((points[idx1], points[idx2], desiredDistance[-1]))
+                print(f"Verbindung hinzugefügt: {points[idx1].name} - {points[idx2].name}")
+            else:
+                st.error("Die Punkte dürfen nicht identisch sein.")
+
+        def remove_connection():
+            idx1 = st.session_state.idx1
+            idx2 = st.session_state.idx2
+            if idx1 != idx2:
+                points[idx1].remove_connection(points[idx2])
+                desiredDistance.remove(Calculation.distance(points[idx1], points[idx2]))
+                distances.remove((points[idx1], points[idx2], desiredDistance[-1]))
+            else:
+                st.error("Die Punkte dürfen nicht identisch sein.")
+
+        #Calculation.create_xVec(Point.allPoints)
+        #Calculation.create_AMatrix(Point.allPoints)
+        #Calculation.create_lVec()
+        #Calculation.calculate_error()
 
         print("\n Winkel ändern \n")
         #centerVec.rotate_point(winkel)
 
-        Calculation.create_xVec(Point.allPoints)
-        Calculation.create_AMatrix(Point.allPoints)
-        Calculation.create_lVec()
-        Calculation.calculate_error()
+        #Calculation.create_xVec(Point.allPoints)
+        #Calculation.create_AMatrix(Point.allPoints)
+        #Calculation.create_lVec()
+        #Calculation.calculate_error()
 
-        points = [p for p in Point.allPoints]
-        print(points)
+        #points = [p for p in Point.allPoints]
+        #print(points)
         #points.append(centerVec)
         #print(points)
 
@@ -192,18 +224,25 @@ with tab2:
             print(f"DOF: {f}")
             return f == 0, f
         DOF, f = degree_of_freedom(points)
-        if DOF == True:
-            st.success('Mechanismus wurde erfolgreich erstellt')
-            mechanism_fig = GraphEvaluation().plotly_mechanism(centerVec, Point.allPoints)
-            st.plotly_chart(mechanism_fig)
-        else:
-            st.error('Mechanismus kann nicht erstellt werden')
-            if f < 0:
-                st.write("Der Mechanismus ist überbestimmt.")
-                st.write("Entferne mindestens", int(abs(f)/2), "Verbindungen.")
-            elif f > 0:
-                st.write("Der Mechanismus ist unterbestimmt.")
-                st.write("Füge mindestens", int(f/2), "Verbindungen hinzu.")
+        with col3:
+            if DOF == True:
+                st.success('Mechanismus wurde erfolgreich erstellt')
+                mechanism_fig = GraphEvaluation().plotly_mechanism(centerVec, points)
+                st.plotly_chart(mechanism_fig)
+            else:
+                st.error('Mechanismus kann nicht erstellt werden')
+                if f < 0:
+                    st.write("Der Mechanismus ist überbestimmt.")
+                    st.write("Entferne mindestens", int(abs(f)), "Verbindungen.")
+                elif f > 0:
+                    st.write("Der Mechanismus ist unterbestimmt.")
+                    st.write("Füge mindestens", int(f), "Verbindungen hinzu.")
+        with col4:
+            st.write("Erstelle Verbindungen zwischen den Punkten:")
+            if st.button("Verbindung hinzufügen", on_click=add_connection):
+                pass
+            if st.button("Verbindung entfernen", on_click=remove_connection):
+                pass
     
 
 with tab3:
