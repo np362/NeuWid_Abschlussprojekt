@@ -94,7 +94,8 @@ class GraphEvaluation:
         
         print(f"centerVec.rotating: {centerVec.rotatingPoint.posX}, {centerVec.rotatingPoint.posY}")
         # Kreiserstellung für centerVec und Nachbar
-        distance_center_n = np.sqrt((centerVec.posX - centerVec.rotatingPoint.posX)**2 + (centerVec.posY - centerVec.rotatingPoint.posY)**2)
+        distance_center_n = centerVec.radius
+        #np.sqrt((centerVec.posX - centerVec.rotatingPoint.posX)**2 + (centerVec.posY - centerVec.rotatingPoint.posY)**2)
         angles = np.linspace(0, 2*np.pi, 300)
         circle_x = centerVec.posX + distance_center_n * np.cos(angles)
         circle_y = centerVec.posY + distance_center_n * np.sin(angles)
@@ -113,7 +114,9 @@ class GraphEvaluation:
         for frame_num in range(frames_count):
 
             centerVec.rotate_point(1)
+            Calculation.output_error(points)
             degree += 1
+            print(f"Degree: {degree}")
             Calculation.optimize_all_positions(points, distances)
             
             # Limit der Achsen

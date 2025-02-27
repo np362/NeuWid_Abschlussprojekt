@@ -9,7 +9,7 @@ import pandas as pd
 from graphevaluation import GraphEvaluation
 from CalculationModule import Center, Point, Calculation#, update
 import matplotlib.animation as animation
-import networkx as nx
+import ast
 
 st.title("Mechanismusanalyse")
 
@@ -33,11 +33,7 @@ with st.sidebar:
         st.subheader("Mechanismus bearbeiten")
 
         # Slider für den Kurbelwinkel (0° bis 360°)
-        winkel = st.slider("Kurbelwinkel (°)", 0, 360, 0, step=1)
-
-        st.write("Ändere die Skalierung des Graphen:")
-
-        scale = st.number_input("Skalierungsfaktor", min_value=0.1, max_value=10.0, value=1.0, step=0.1)
+        winkel = st.slider("Inertialwinkel (°)", 0, 360, 0, step=1)
 
         st.write("Aktuelle Verbindungen:")
         for idx1, idx2 in st.session_state.connections:
@@ -83,6 +79,10 @@ with tab1:
                 for idx, row in enumerate(df_rows):
                     row[0] = str(idx)
 
+                for (i,node) in enumerate(input_nodes):
+                    if i < len(input_nodes)-1:
+                        st.session_state.connections.append((i, i+1))
+
                 # Erstelle DataFrame aus gefilterten Daten
                 st.session_state.dataframe = pd.DataFrame(df_rows, columns=["Punkt", "x", "y", "Fest"])
 
@@ -103,7 +103,10 @@ with tab1:
         elif uploaded_file.type == "text/csv":
             if generate_file:
                 st.success("Der Mechanismus wurde erfolgreich hochgeladen!")
-                st.session_state.dataframe = pd.read_csv(uploaded_file)
+                df = pd.read_csv(uploaded_file)
+                st.session_state.dataframe = df[["Punkt", "x", "y", "Fest"]].copy()
+                df["Verbindungen"] = df["Verbindungen"].apply(lambda x: ast.literal_eval(x) if isinstance(x, str) and x.strip() else [])
+                st.session_state.connections = [(idx, connected_idx) for idx, connected in enumerate(df["Verbindungen"]) for connected_idx in connected]
                 st.write(st.session_state.dataframe)
 
             
@@ -163,7 +166,7 @@ def vorlage(option):
         st.session_state.dataframe = vorlage3
         st.session_state.connections = con_vorlage3
 
-def vorlage2():
+def vorlage_2():
     st.session_state.dataframe = vorlage2
     st.session_state.connections = con_vorlage2
 
@@ -211,21 +214,26 @@ with tab2:
             else:
                 points.append(Point(node[1]["Punkt"], node[1]["x"], node[1]["y"], node[1]["Fest"]))
         
-        
-        connections = st.session_state.connections
-         
-        for idx1, idx2 in connections:
-            points[idx1].add_connection(points[idx2])
+        print(f"connections: {len(st.session_state.connections)}")         
+        # for idx1, idx2 in st.session_state.connections:
+        #     points[idx1].add_connection(points[idx2])
+        #     print(f"Verbindung {points[idx1].name} - {points[idx2].name} hinzugefügt")
+        #     desiredDistance.append(Calculation.distance(points[idx1], points[idx2]))
+        #     if points[idx1].isFixed:
+        #         distances.append((points[idx2], points[idx1], desiredDistance[-1]))
+        #     else:
+        #         distances.append((points[idx1], points[idx2], desiredDistance[-1]))
 
-        for point in points:
-            for connected in point.connectedPoints:
-                print(f"Verbindung {point.name} - {connected.name} hinzugefügt")
-                desiredDistance.append(Calculation.distance(point, connected))
-                if point.isFixed:
-                    distances.append((connected, point, desiredDistance[-1]))
-                else:
-                    distances.append((point, connected, desiredDistance[-1]))
+        for idx1, idx2 in st.session_state.connections:
+            p1, p2 = points[idx1], points[idx2]
+            p1.add_connection(p2)
+            dist = Calculation.distance(p1, p2)
+            desiredDistance.append(dist)
+            distances.append((p1, p2, dist))
+            distances.append((p2, p1, dist))
 
+        print(f"CenterrotatingPoint: {centerVec.rotatingPoint.name}")
+        print(f"Rotating Point: {centerVec.rotatingPoint.name} ({centerVec.rotatingPoint.posX}, {centerVec.rotatingPoint.posY})")
         # Ändert Inertialwinkel
         centerVec.rotate_point(winkel)
 
@@ -237,8 +245,7 @@ with tab2:
                     f -= 2
                 if point == centerVec.rotatingPoint:
                     f -= 2
-                if point.connectedPoints:
-                    f -= len(point.connectedPoints)
+                f -= len(point.connectedPoints)
             #f = f - len(Point.connectedPoints)
             print(f"DOF: {f}")
             return f == 0, f
@@ -255,11 +262,18 @@ with tab2:
                         data_trajec.append([name, position, degree])
                 trajec_df = pd.DataFrame(data_trajec, columns=["Punkt", "x  y", "Winkel"])
 
+                connections_dict = {idx: [] for idx in edited_data.index}
+                for idx1, idx2 in st.session_state.connections:
+                    connections_dict[idx1].append(idx2)
+
                 with save_col1:
                     # Save the mechanism as a csv file
                     csv_name = "mechanism.csv"
+                    edited_and_connectedpoints = edited_data.copy()
+                    edited_and_connectedpoints["Verbindungen"] = edited_and_connectedpoints.index.map(lambda idx: connections_dict[idx])
+
                     st.download_button(label="Mechanismus als CSV speichern",
-                                        data=edited_data.to_csv(index=False),
+                                        data=edited_and_connectedpoints.to_csv(index=False),
                                         file_name=csv_name,
                                         mime="text/csv")
                 with save_col2:
@@ -288,6 +302,7 @@ with tab2:
                 elif f > 0:
                     st.write("Der Mechanismus ist unterbestimmt.")
                     st.write("Füge mindestens", int(f), "Verbindungen hinzu.")
+
         with col4:
             st.write("Erstelle Verbindungen zwischen den Punkten:")
             st.button("Verbindung hinzufügen", on_click=add_connection)
@@ -313,46 +328,51 @@ with tab3:
                 (3, 1),
                 (3, 4)
             ]
+        # Viergelenkkette Bild einfügen
+        st.image("images/Sechsgelenkkette.png", use_container_width=True)
+
         # Button zum Verwenden der Vorlage 1
-        if st.button("Vorlage 1", on_click=vorlage(1)):
+        if st.button("Vorlage 1", on_click=lambda: vorlage(1)):
             st.write("Vorlage 1 erfolgreich geladen!")
     with colsave2:
         vorlage2 = pd.DataFrame({
-                        "Punkt": ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "Center"],
-                        "x": [10, -20, 0, 30, -15, 5, -10, 25, 35, 20, 15],
-                        "y": [25, -10, 5, 30, 20, 10, 0, 35, 15, 5, 10],
-                        "Fest": [False, False, False, False, False, False, False, False, False, True, True]
+                        "Punkt": ["A", "B", "C", "Center"],
+                        "x": [0.0, 10, -25, -30],
+                        "y": [0.0, 35, 10, 0],
+                        "Fest": [True, False, False, True]  # "Fixiert" = True, andere = False
                     })
+        
         con_vorlage2 = [
-                    (0, 1),  
-                    (1, 2),  
-                    (2, 3),  
-                    (3, 4),  
-                    (4, 5),  
-                    (5, 6),  
-                    (6, 7),  
-                    (7, 8),  
-                    (8, 9),  
-                    (9, 10)  
-                ]
+            (0, 1),  
+            (1, 2)
+        ]
+
+        st.image("images/Viergelenkkette.png", use_container_width=True)
         # Button zum Verwenden der Vorlage 2
-        if st.button("Vorlage 2", on_click=vorlage2):
+        if st.button("Vorlage 2", on_click=lambda: vorlage(2)):
             st.write("Vorlage 2 erfolgreich geladen!")
     with colsave3:
         vorlage3 = pd.DataFrame({
-                "Punkt": ["B", "C", "D", "A", "E", "center"],
-                "x": [0, 10, -25, 25, 5, -30],
-                "y": [0, 35, 10, 10, 10, 0],
-                "Fest": [True, False, False, False, True, True]  # True = fest, False = lose
-            })
+                        "Punkt": ["A", "B", "C", "D", "E", "F", "G", "Center"],
+                        "x": [0.0, 18, 40, -35, -30, -19, 1, 38],
+                        "y": [0.0, 50, 25, 20, -19, -84, -39, 8],
+                        "Fest": [True, False, False, False, False, False, False, True]  # "Fixiert" = True, andere = False
+                    })
         con_vorlage3 = [
-                (0, 1),
-                (1, 2),
-                (3, 1),
-                (3, 4)
-            ]
+            (2, 1),  
+            (2, 6),
+            (1, 0),
+            (3, 1),
+            (3, 4),
+            (3, 0),
+            (4, 5),
+            (4, 6),
+            (0, 6),
+            (5, 6)
+        ]
+        st.image("images/Strandbeest_vorlage.png", use_container_width=True)
         # Button zum Verwenden der Vorlage 3
-        if st.button("Vorlage 3", on_click=vorlage(3)):
+        if st.button("Vorlage 3", on_click=lambda:vorlage(3)):
             st.write("Vorlage 3 erfolgreich geladen!")
 
 
