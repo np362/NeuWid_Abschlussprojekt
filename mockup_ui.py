@@ -5,7 +5,8 @@ import time
 import matplotlib.pyplot as plt
 import tempfile
 import pandas as pd
-from graphevaluation import GraphEvaluation, create_gif
+from graphevaluation import GraphEvaluation
+from graphevaluation import create_gif_function
 from CalculationModule import Center, Point, Calculation
 import ast
 
@@ -320,7 +321,7 @@ with tab2:
                         st.session_state.gif_erstellen = True
                         st.write("Erstelle GIF. Dies kann einige Sekunden dauern.")
                         # Speicher den Mechanismus als GIF
-                        Gif = create_gif(images)
+                        Gif = create_gif_function(images)
                     if st.session_state.gif_erstellen:
                         with open(Gif, "rb") as file:
                             st.download_button(label="GIF herunterladen",

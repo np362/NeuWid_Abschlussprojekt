@@ -7,6 +7,7 @@ from CalculationModule import Calculation
 import os
 import imageio
 from PIL import Image
+import pandas as pd
 
 class GraphEvaluation:
     def __init__(self, uploaded_file=None):
@@ -196,7 +197,7 @@ class GraphEvaluation:
         return fig, trajec_dict, image_paths
 
 # Funktion für GIF-Erstellung, die später aufgerufen wird
-def create_gif(image_paths, output_folder="GIF"):
+def create_gif_function(image_paths, output_folder="GIF"):
     gif_name = f"{output_folder}/mechanism.gif"
 
     with imageio.get_writer(gif_name, mode="I", duration=0.1) as writer:
