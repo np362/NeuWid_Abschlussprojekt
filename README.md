@@ -2,10 +2,12 @@
 
 ## Projektbeschreibung
 Das folgende Projekt dient der Auswertung beliebiger ebener Mechanismen, welche vier Einschränkungen besitzen. 
-    - Es werden nur ebene Mechanismen betrachtet
-    - Nur Drehgelenke sind mit starren Gliedern verbunden. 
-    - Nur ein Drehgelenk dient als Antrieb 
-    - Ein Gelenk ist fest verankert  
+```
+1. Es werden nur ebene Mechanismen betrachtet
+2. Nur Drehgelenke sind mit starren Gliedern verbunden
+3. Nur ein Drehgelenk dient als Antrieb
+4. Ein Gelenk ist fest verankert
+```
 Es werden Winkel im Bereich von 0° bis 360° betrachtet.
 
 ## Installation
@@ -32,6 +34,10 @@ Mit dem Button "Zwei Zeilen tauschen" kann die Anordnung der Punkte in der Tabel
 
 ![Mechanismuserstellung](images/Mechanismuserstellen.png)
 
+Sobald der Mechanismus erstellt wurde, kann dieser gespeichert werden. Durch anklicken des Knopfes "Download plot as png" in der Figur selbst, wird der Mechanismus als PNG-Datei gespeichert. Wenn beim Abspielen der Animation der Button "Pause" betätigt wird, kann der Mechanismus an einer beliebigen Stelle gespeichert werden.
+
+![Mechanismus speichern](images/Save_image_as_png.png)
+
 Um das Erstellen eines Mechanismus zu vereinfachen wurden Vorlagen eingefügt, welche durch einen Klick auf den Button "Vorlage" geladen werden können.
 
 ![Vorlagen](images/Mechanismus_Vorlagen.png)
@@ -44,7 +50,7 @@ So kann auch die Bahnstrecke eines gewählten Punktes, sofern dieser nicht stati
 
 ![Bahnkurven](images/Anzeige_Bahnkurven.png)
 
-Der Mechanismus und die Bahnkurve kann auch als CSV-Datei gespeichert werden. Hierbei wird der Mechanismus in einer Tabelle dargestellt, sodass der Nutzer die Koordinaten der Punkte und die Verbindungen einsehen kann. 
+Der Mechanismus und die Bahnkurve kann auch als CSV-Datei gespeichert werden. Hierbei wird der Mechanismus in einer Tabelle dargestellt, sodass der Nutzer die Koordinaten der Punkte und die Verbindungen einsehen kann. Bei der Bahnkurve wird zudem der jeweilige Winkel der einzelnen Punkte des Mechanismus angezeigt.
 
 Die csv-Datei des Mechanismus kann auch wieder geladen werden, sodass der Mechanismus nicht erneut eingegeben werden muss.
 
