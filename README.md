@@ -29,14 +29,19 @@ Die Berechnung läuft nach folgendem Ablaufschema ab:
 
 ![Ablaufdiagramm](images/Ablaufdiagramm_Mechanismus.png)
 
-Zuerst erfolgt das Laden/Erstellen des Mechanismus durch den Benutzer. Dann wird von der Software überprüft, ob das System statisch bestimmt ist. Wenn nicht, so muss der Benutzer Änderungen an den Einstellungen treffen. Wenn das System valide ist, dann werden die euklidischen Distanzen zwischen den Punkten berechnet und diese dann als gewünschte Distanzen (im Code desDist) gespeichert. 
-Nach der Berechnung wird der Winkel der Antriebskurbel um 1° erhöht. Dadurch verändern sich die Distanzen zwischen den Punkten (erstmals nur die Distanzen von Punkten, die mit dem Kurbelantrieb zusammenhängen). Mittels der least_square()-Funktion des scipy Moduls, werden dann die Positionen so optimiert, dass die Längenänderung innerhalb einer in der Funktion festgelegten Toleranz liegt. Wenn die Positionen aller beweglichen Punkte angepasst wurden, wird der Winkels des Kurbelantriebs wieder um 1° erhöht.
+Zuerst erfolgt das Laden/Erstellen des Mechanismus durch den Benutzer. Dann wird von der Software überprüft, ob das System statisch bestimmt ist. 
+
+Wenn nicht, so muss der Benutzer Änderungen an den Einstellungen treffen. Wenn das System valide ist, dann werden die euklidischen Distanzen zwischen den Punkten berechnet und diese dann als gewünschte Distanzen (im Code desDist) gespeichert. 
+Nach der Berechnung wird der Winkel der Antriebskurbel um 1° erhöht. 
+Dadurch verändern sich die Distanzen zwischen den Punkten (erstmals nur die Distanzen von Punkten, die mit dem Kurbelantrieb zusammenhängen). 
+
+Mittels der least_square()-Funktion des scipy Moduls, werden dann die Positionen so optimiert, dass die Längenänderungen innerhalb einer in der Funktion festgelegten Toleranz liegen. Wenn die Positionen aller beweglichen Punkte angepasst wurden, wird der Winkels des Kurbelantriebs erneut um 1° erhöht.
 
 ## Berechnung
 
 Für die Berechnung im Programm wurden folgende Klassen verwendet. 
 
-![Klassendiagramm](image/Klassendiagramm.png)
+![Klassendiagramm](images/Klassendiagramm.png)
 
 Die Klasse Center wurde als Singleton realisiert, da nur ein Kurbelantrieb für den Mechanismus vorgesehen ist. 
 Das Attribut rotatingPoint ist derjenigen Punkt, der in einer Kreisbahn um den Punkt Center rotieren soll. 
@@ -45,15 +50,21 @@ Die Methode nimmt den Integer degree entgegen, der den aktuellen Winkel um diese
 Die Klasse Point hat das Attribut vec, dass ein np.array() mit den Positionen erstellt. Dies wird für weitere Berechnungen benötigt.
 add_connection() nimmt den Punkt entgegen, mit dem der Punkt in der Grafik als verbunden dargestellt werden soll. 
 
-In der Klasse Calculation werden die Berechnungen durchgeführt. Die Methoden create_xVec(), create_AMatrix(), create_lVec() entsprechen den Rechenschritten im Skript. Mit calculate_error() wird die Längendifferenzen der derzeitigen und vorherigen Iteration, im Skript mit dem Vektor e, berechnet. output_error() fasst alle diese Methoden zusammen, für einfachere Handhabung. 
+In der Klasse Calculation werden die Berechnungen durchgeführt. Die Methoden create_xVec(), create_AMatrix(), create_lVec() entsprechen den Rechenschritten im Skript. Mit calculate_error() wird die Längendifferenzen der derzeitigen und vorherigen Iteration, im Skript mit dem Vektor e gekennzeichnet, berechnet. output_error() fasst alle diese Methoden zusammen, für einfachere Handhabung. 
 
 In distance() wird die euklidische Distanz zwischen zwei Punkten berechnet und zurückgegeben. 
 
 Die Methode residuals() berechnet die Differenz von den tatsächlichen und den gewünschten Distanzen und gibt sie als Liste zurück.
 
-Als letzte Methode ist noch optimize_all_points(). 
-Diese nimmt eine Liste mit allen Punkten (mit Ausnahme Center) und Tuples mit den Punktepaaren und deren Distanz als Parameter. Hierbei ist zu beachten, dass ein fixierter Punkt bzw. der rotierende Punkt als zweites Argument angegeben werden muss. Die Toleranz und Anzahl an Iterationen sind in der Methode als Standardparameter gesetzt. Die Funktion iteriert über die Liste der Punkte und überprüft, welche Punkte fixiert oder lose sind. 
-Dann werden mit least_square die Residuen basierend auf den Positionen von p1, p2 und der gewünschten Distanz berechnet. Die Position von p1 wird mit den optimierten Werten aktualisiert. Der Fehler wird als absolute Differenz zwischen der aktuellen und der gewünschten Distanz berechnet und mit dem max_error verglichen. Wenn der aktuelle Fehler größer ist, wird max_error entsprechend aktualisiert.
+Die finale Methode ist optimize_all_points(). 
+Diese nimmt eine Liste mit allen Punkten (mit Ausnahme Center) und Tuples mit den Punktepaaren und deren Distanz als Parameter. Hierbei ist zu beachten, dass ein fixierter Punkt bzw. der rotierende Punkt als zweites Argument im Punktepaar angegeben werden muss. 
+
+Die Toleranz und Anzahl an Iterationen sind in der Methode als Standardparameter gesetzt. Die Funktion iteriert über die Liste der Punkte und überprüft, welche Punkte fixiert oder lose sind. 
+
+Die Methode least_squares wird verwendet, um die Position von p1 zu optimieren. Dabei werden die Residuen berechnet, basierend auf der aktuellen Position und den gewünschten Distanzen zu p2. 
+Die Position von p1 wird mit den optimierten Werten aktualisiert.
+ 
+Der Fehler wird als absolute Differenz zwischen der aktuellen und der gewünschten Distanz berechnet und mit dem max_error verglichen. Wenn der aktuelle Fehler größer ist, wird max_error entsprechend aktualisiert.
 
 
 ## Anwendung
