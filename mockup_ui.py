@@ -2,16 +2,18 @@
 
 import streamlit as st
 import time
-import numpy as np
 import matplotlib.pyplot as plt
 import tempfile
 import pandas as pd
-from graphevaluation import GraphEvaluation
-from CalculationModule import Center, Point, Calculation#, update
-import matplotlib.animation as animation
+from graphevaluation import GraphEvaluation, create_gif
+from CalculationModule import Center, Point, Calculation
 import ast
 
 st.title("Mechanismusanalyse")
+
+## ----------------------------------------------------
+        # Standard Mechanismus
+## ----------------------------------------------------
 
 if "dataframe" not in st.session_state:
         st.session_state.dataframe = pd.DataFrame({
@@ -29,6 +31,10 @@ if "connections" not in st.session_state:
         (3, 4)
     ]
 
+## ----------------------------------------------------
+        #  Sidebar
+## ----------------------------------------------------
+
 with st.sidebar:
         st.subheader("Mechanismus bearbeiten")
 
@@ -42,23 +48,23 @@ with st.sidebar:
         
 tab1, tab2, tab3 = st.tabs(["Mechanismus laden", "Mechanismus erstellen", "Mechanismusvorlagen"])
 
+## ----------------------------------------------------
+        #  Tab 1 Mechanismus laden
+## ----------------------------------------------------
+
 with tab1:
     st.subheader("Mechanismus hochladen")
     uploaded_file = st.file_uploader("Lade hier deinen Mechanismus hoch", type=["csv", "png", "jpg", "jpeg"])
     generate_file = st.button("Mechanismus generieren")
-    #if generate_file:
-        #with st.progress(text='In progress', value=0):
-         #   time.sleep(0.3)
-          #  st.success("Der Mechanismus wurde erfolgreich hochgeladen!")
     
     if uploaded_file is not None:
-        #st.write("Mechanismus wurde erfolgreich hochgeladen!")
+
+        # Bild einlesen, Konturen erkennen und speichern
         if uploaded_file.type == "image/jpeg" or uploaded_file.type == "image/png" or uploaded_file.type == "image/jpg":
             with tempfile.NamedTemporaryFile(delete=False) as temp_file:
                 temp_file.write(uploaded_file.read())
                 temp_path = temp_file.name
             image, input_nodes = GraphEvaluation(temp_path).detect_contours()
-            #st.write("Knoten:", input_nodes)                
             # Anzeigen des Ergebnisses mit Matplotlib
             plt.figure(figsize=(10, 6))
             plt.imshow(image)
@@ -90,8 +96,7 @@ with tab1:
                 if center_node:
                     st.session_state.dataframe = pd.concat([
                         st.session_state.dataframe,
-                        pd.DataFrame([["center", center_node[0], center_node[1], center_node[2]]], columns=["Punkt", "x", "y", "Fest"])
-                    ], ignore_index=True)
+                        pd.DataFrame([["center", center_node[0], center_node[1], center_node[2]]], columns=["Punkt", "x", "y", "Fest"])], ignore_index=True)
                 with st.progress(text='In progress', value=0):
                     time.sleep(0.3)
                     st.success("Der Mechanismus wurde erfolgreich hochgeladen!")
@@ -100,6 +105,7 @@ with tab1:
             if st.button("Bild anzeigen"):
                 st.pyplot(fig=plt)
         
+        # CSV-Datei einlesen und Variablen speichern
         elif uploaded_file.type == "text/csv":
             if generate_file:
                 st.success("Der Mechanismus wurde erfolgreich hochgeladen!")
@@ -113,9 +119,16 @@ with tab1:
     elif uploaded_file is None and generate_file:
         st.error("Es wurde keine Datei hochgeladen.")
 
+
 if "prev_last_index" not in st.session_state:
     st.session_state.prev_last_index = len(st.session_state.dataframe) - 1
 
+
+## ----------------------------------------------------
+        # Callback functions für Tab 2
+## ----------------------------------------------------
+
+# Aktualisiert das DataFrame
 def update_dataframe():
     edited = st.session_state.data_editor
     if isinstance(edited_data, pd.DataFrame):
@@ -125,6 +138,7 @@ def update_dataframe():
 
     st.session_state.prev_last_index = len(st.session_state.dataframe) - 2
 
+# Vertauscht die Zeilen
 def swap_rows():
     idx1 = st.session_state.idx1
     idx2 = st.session_state.idx2
@@ -132,6 +146,7 @@ def swap_rows():
     df.iloc[[idx1, idx2]] = df.iloc[[idx2, idx1]].to_numpy() 
     st.session_state.dataframe = df
 
+# Fügt eine Verbindung hinzu
 def add_connection():
     idx1 = st.session_state.idx1
     idx2 = st.session_state.idx2
@@ -144,6 +159,7 @@ def add_connection():
     else:
         st.error("Die Punkte dürfen nicht identisch sein.")
 
+# Entfernt eine Verbindung
 def remove_connection():
             idx1 = st.session_state.idx1
             idx2 = st.session_state.idx2
@@ -155,6 +171,7 @@ def remove_connection():
             else:
                 st.error("Die Punkte dürfen nicht identisch sein.")
 
+# Funktion zum Laden der Vorlagen
 def vorlage(option):
     if option == 1:
         st.session_state.dataframe = vorlage1
@@ -166,10 +183,18 @@ def vorlage(option):
         st.session_state.dataframe = vorlage3
         st.session_state.connections = con_vorlage3
 
-def vorlage_2():
-    st.session_state.dataframe = vorlage2
-    st.session_state.connections = con_vorlage2
 
+# Session_states für die Knöpfe "Mechanismus erstellen" und "GIF erstellen"
+if "mechanismus_erstellen" not in st.session_state:
+    st.session_state.mechanismus_erstellen = False
+
+if "gif_erstellen" not in st.session_state:
+    st.session_state.gif_erstellen = False
+
+
+## ----------------------------------------------------
+        #  Tab 2 Mechanismus erstellen
+## ----------------------------------------------------
 
 with tab2:
     st.subheader("Mechanismus erstellen")
@@ -195,12 +220,18 @@ with tab2:
         st.selectbox("Zweite Zeile", st.session_state.dataframe.index, key="idx2")
         st.button("Zwei Zeilen tauschen", on_click=swap_rows)
         
-    #edited_data = st.session_state.edited_data
-
     col3, col4 = st.columns([3, 1])
-    save_col1, save_col2 = st.columns([1, 1])
+    save_col1, save_col2, save_col3 = st.columns([1, 1, 1])
+
+    ## ----------------------------------------------------
+        #  Mechanismus erstellen
+    ## ----------------------------------------------------
     
     if st.button("Mechanismus erstellen"):
+        st.session_state.mechanismus_erstellen = True
+
+    if st.session_state.mechanismus_erstellen:
+        Calculation.lVecList = []
         
         if Center._instance:
             Center._instance = None
@@ -208,22 +239,16 @@ with tab2:
         points = []
         desiredDistance = []
         distances = []
+        # Punkte und Center erstellen
         for node in edited_data.iterrows():
             if node[0] == edited_data.shape[0]-1:
                 centerVec = Center(node[1]["Punkt"], node[1]["x"], node[1]["y"], points[2])
             else:
                 points.append(Point(node[1]["Punkt"], node[1]["x"], node[1]["y"], node[1]["Fest"]))
-        
-        print(f"connections: {len(st.session_state.connections)}")         
-        # for idx1, idx2 in st.session_state.connections:
-        #     points[idx1].add_connection(points[idx2])
-        #     print(f"Verbindung {points[idx1].name} - {points[idx2].name} hinzugefügt")
-        #     desiredDistance.append(Calculation.distance(points[idx1], points[idx2]))
-        #     if points[idx1].isFixed:
-        #         distances.append((points[idx2], points[idx1], desiredDistance[-1]))
-        #     else:
-        #         distances.append((points[idx1], points[idx2], desiredDistance[-1]))
 
+        print(f"connections: {len(st.session_state.connections)}")         
+        
+        # Verbindungen zwischen den Punkten hinzufügen
         for idx1, idx2 in st.session_state.connections:
             p1, p2 = points[idx1], points[idx2]
             p1.add_connection(p2)
@@ -237,6 +262,7 @@ with tab2:
         # Ändert Inertialwinkel
         centerVec.rotate_point(winkel)
 
+        # Berechnet den Freiheitsgrad des Mechanismus
         def degree_of_freedom(points):
             f = 2*(len(points))
             print(f"DOF: {f}")
@@ -246,14 +272,16 @@ with tab2:
                 if point == centerVec.rotatingPoint:
                     f -= 2
                 f -= len(point.connectedPoints)
-            #f = f - len(Point.connectedPoints)
             print(f"DOF: {f}")
             return f == 0, f
         DOF, f = degree_of_freedom(points)
         with col3:
+            if len(points) < 3:
+                st.error("Der Mechanismus kann nicht erstellt werden.")
+                st.write("Zu wenig Punkte. Es müssen mindestens 3 Punkte und ein center vorhanden sein.")
             if DOF == True:
                 st.success('Mechanismus wurde erfolgreich erstellt')
-                mechanism_fig, traject_dict = GraphEvaluation().plotly_mechanism(centerVec, points, distances, winkel)
+                mechanism_fig, traject_dict, images = GraphEvaluation().plotly_mechanism(centerVec, points, distances, winkel)
                 st.plotly_chart(mechanism_fig)
                 
                 data_trajec = []
@@ -284,16 +312,22 @@ with tab2:
                                         data=csv_data,
                                         file_name=csv_name,
                                         mime="text/csv")
+                
+                gif_name = "mechanism.gif"
 
+                with save_col3:
+                    if st.button("Animation als GIF speichern"):
+                        st.session_state.gif_erstellen = True
+                        st.write("Erstelle GIF. Dies kann einige Sekunden dauern.")
+                        # Speicher den Mechanismus als GIF
+                        Gif = create_gif(images)
+                    if st.session_state.gif_erstellen:
+                        with open(Gif, "rb") as file:
+                            st.download_button(label="GIF herunterladen",
+                                                data=file,
+                                                file_name=gif_name,
+                                                mime="image/gif")
 
-                # gif_name = "mechanism.gif"
-                # GraphEvaluation().save_gif(mechanism_fig, gif_name)
-
-                # with open(gif_name, "rb") as gif_file:
-                #     st.download_button(label="Animation als GIF speichern",
-                #                         data=gif_file,
-                #                         file_name=gif_name,
-                #                         mime="image/gif")
             else:
                 st.error('Mechanismus kann nicht erstellt werden')
                 if f < 0:
@@ -308,6 +342,10 @@ with tab2:
             st.button("Verbindung hinzufügen", on_click=add_connection)
             st.button("Verbindung entfernen", on_click=remove_connection)
     
+
+## ----------------------------------------------------
+        #  Tab 3 Mechanismusvorlagen
+## ----------------------------------------------------
 
 with tab3:
 
@@ -339,7 +377,7 @@ with tab3:
                         "Punkt": ["A", "B", "C", "Center"],
                         "x": [0.0, 10, -25, -30],
                         "y": [0.0, 35, 10, 0],
-                        "Fest": [True, False, False, True]  # "Fixiert" = True, andere = False
+                        "Fest": [True, False, False, True]  # "Fixiert" = True, "Lose" = False
                     })
         
         con_vorlage2 = [
@@ -356,7 +394,7 @@ with tab3:
                         "Punkt": ["A", "B", "C", "D", "E", "F", "G", "Center"],
                         "x": [0.0, 18, 40, -35, -30, -19, 1, 38],
                         "y": [0.0, 50, 25, 20, -19, -84, -39, 8],
-                        "Fest": [True, False, False, False, False, False, False, True]  # "Fixiert" = True, andere = False
+                        "Fest": [True, False, False, False, False, False, False, True]  # "Fixiert" = True, "Lose" = False
                     })
         con_vorlage3 = [
             (2, 1),  

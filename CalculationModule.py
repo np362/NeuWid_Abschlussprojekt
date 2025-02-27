@@ -1,9 +1,6 @@
-import matplotlib.pyplot as plt
-import matplotlib.animation as animation
 import numpy as np
 from scipy.optimize import least_squares
 import math
-import pandas as pd
 
 class Center:
     """Since we only want one rotation point, a Singleton is used here"""
@@ -101,7 +98,6 @@ class Calculation():
                 cls.AMatrix[row, nodeIndices[end] * 2] = -1
                 cls.AMatrix[row+1, nodeIndices[end] * 2 + 1] = -1
                 row += 2
-        #print(f"AMatrix:\n {cls.AMatrix}")
 
     @classmethod
     def create_lVec(cls):
@@ -117,7 +113,6 @@ class Calculation():
             numVecY = np.array([math.sqrt(cls.LVec[i+1, 0] ** 2 + cls.LVec[i+1, 1] ** 2)])
             cls.lVec = np.vstack((cls.lVec, numVecY))
 
-        #print(f"lVec:\n {cls.lVec}")
         if len(cls.lVecList) >= 2:
             cls.lVecList.pop(0)
         cls.lVecList.append(cls.lVec)
@@ -129,7 +124,6 @@ class Calculation():
         else:
             cls.eVec = np.zeros((len(cls.lVec), 1))
 
-        #print(f"Differences:\n{cls.eVec}")
 
     @classmethod
     def output_error(cls, points : list):
@@ -137,36 +131,36 @@ class Calculation():
         Calculation.create_AMatrix(points)
         Calculation.create_lVec()
         Calculation.calculate_error()
-    @classmethod
-    def distance(cls, p1, p2):
+
+    @staticmethod
+    def distance(p1, p2):
         return np.linalg.norm(np.array(p1.get_position()) - np.array(p2.get_position()))
     
-    @classmethod
-    def residuals(cls, params, fixedPoints, desiredDistances):
+    @staticmethod
+    def residuals(params, fixedPoints, desiredDistances):
         x, y = params
         tempPoint = Point("Temp", x, y, False)
         residuals = []
         for fixedPoint, desiredDistance in zip(fixedPoints, desiredDistances):
-            currentDistance = cls.distance(tempPoint, fixedPoint)
+            currentDistance = Calculation.distance(tempPoint, fixedPoint)
             residuals.append(currentDistance - desiredDistance)
         return residuals
     
-    @classmethod
-    def optimize_all_positions(cls, points, distances, tolerance=0.6, max_iterations=100):
+    @staticmethod
+    def optimize_all_positions(points, distances, tolerance=0.6, max_iterations=100):
         fixedPoints = [p for p in points if p.isFixed]
         
         if len(fixedPoints) >= 3:
-            raise ValueError("Genau zwei Fixpunkte erforderlich: Center + 1 weiterer Punkt!")
+           raise ValueError("Genau zwei Fixpunkte erforderlich: Center + 1 weiterer Punkt!")
 
         for _ in range(max_iterations):
             max_error = 0
             for p1, p2, desiredDistance in distances:
                 if not p1.isFixed:  # Nur bewegliche Punkte anpassen
                     initialPosition = p1.get_position()
-                    result = least_squares(cls.residuals, initialPosition, jac='2-point',
-                                        args=([p2], [desiredDistance]), max_nfev=1000)
+                    result = least_squares(Calculation.residuals, initialPosition, args=([p2], [desiredDistance]), max_nfev=1000)
                     p1.update_position(result.x[0], result.x[1])
-                    error = abs(cls.distance(p1, p2) - desiredDistance)
+                    error = abs(Calculation.distance(p1, p2) - desiredDistance)
                     if error > max_error:
                         max_error = error
 
